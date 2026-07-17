@@ -43,9 +43,15 @@ shared-vehicle co-op survival loop, reskinned and differentiated:
 | Defend the train | Defend the **boat** (+ players, revive) |
 | Stop at **towns** to loot/buy | Stop at **docks** to scavenge/refuel |
 
-_Open question this raises:_ is our river effectively **on-rails** (linear, you mostly steer within a
-lane — matches the proven model and is simpler) or **free-drive** within the river? Leaning on-rails
-for v1. (See Job 001 notes; detailed mechanics borrowed/differentiated after research.)
+**Decision — the river winds; the driver actively steers.** The current funnels you downstream
+(semi-on-rails *direction*, so it stays authorable and easy to balance), but the river is **curved,
+never a straight lane** — the driver must steer around bends, rocks, and rapids, so the role takes
+real skill. Not a straight corridor, not full open-water free-roam.
+
+**Boat handling — physics, not teleport.** The boat moves via **real Roblox physics forces** (thrust +
+turning applied as constraints/forces), so it has **momentum, acceleration, and drift** — it feels like
+a real engine-driven boat, not "hold W and slide." Turning through the bends should feel weighty and
+satisfying. This is a core feel pillar (prototyped in P1).
 
 ## Market & competition (why this can win)
 
@@ -123,6 +129,20 @@ Players move freely between **stations** on the boat during the run (flexible fo
 **Target (from market data):** the genre sweet spot is **~4–8 co-op** (Dead Rails 16-server cap but
 small squads; Dead Sails 4/expedition). Plan for a **~4–6 core crew** using the *limited-stations +
 deck-defenders* model so extras always contribute; larger lobbies/convoy are a later mode.
+
+## World & environment
+
+- **Built with terrain.** Islands, riverbanks, and landmasses are **sculpted Roblox terrain** (not flat
+  parts) — hills, cliffs, beaches, jungle floor — for a natural, organic look.
+- **The river winds.** A **curved, meandering** river (never straight) with bends, narrows, rapids, and
+  possible forks — the corridor the run travels along. Steering it is core to the driver role.
+- **Currents.** The river pushes the boat **downstream along the channel**, and current **strength
+  varies by section** — calm stretches vs fast **rapids** that fling you along (harder to steer, less
+  fuel burn) and slow eddies. A river-specific mechanic land/ocean games can't do.
+- **Waterfalls / drops.** Vertical drops as **set-piece moments** — brace, drop, keep control. (Bigger
+  feature — targeted at P5, needs multi-level river.)
+- **Placeholder first:** early phases greybox the terrain + river to test feel; final flora, water
+  detailing, and set-pieces come in the art pass (P9).
 
 ## Threats, stake & fail/win
 
