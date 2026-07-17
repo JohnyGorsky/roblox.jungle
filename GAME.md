@@ -138,6 +138,12 @@ deck-defenders* model so extras always contribute; larger lobbies/convoy are a l
   Organic natural look; a seed reproduces a river (random per run, or a shared "daily" seed for fair
   leaderboards). Built with the `roblox-terrain` verify discipline and **streamed** for the long river
   (generate ahead of the boat, cull behind).
+- **A vast jungle; mountains far away.** The playable space is **dense jungle** — trees, bushes,
+  foliage — lining the river corridor. The big **rock/snow mountains sit far in the distance** as a
+  backdrop (reachable/climbable, but *far*), so the world reads as **vast and open**. You travel the
+  river through the jungle; the peaks loom on the horizon — scale and atmosphere, not near walls.
+- **Foliage.** Trees/bushes/plants are **scattered procedurally** along the jungle floor (denser near
+  the banks), greybox blocks for now → low-poly/Meshy models at the art pass (P9).
 - **The river winds.** A **curved, meandering** river (never straight) with bends, narrows, rapids, and
   possible forks — the corridor the run travels along. Steering it is core to the driver role.
 - **Currents.** The river pushes the boat **downstream along the channel**, and current **strength
