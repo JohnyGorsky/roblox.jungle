@@ -34,15 +34,26 @@ Ordered so we always have something playable, building the **fun core first**, a
 - **P5 — Campaign zones & escalation.** Sequence of zones/checkpoints to a fixed **end**, difficulty
   ramp, **day/night cycle**.
 - **P6 — Lobby & matchmaking.** Lobby place, **team-up UI (1–4)**, **reserved-server teleport** to the
-  gameplay place. (Can stub earlier; full version here.)
+  gameplay place, and the **pre-run upgrade/shop area** (lobby/crash). (Can stub earlier; full version here.)
 - **P7 — HUD, scoring & leaderboards.** In-run HUD (fuel/ammo/health/roles/distance), results screen,
   **global + friends leaderboards** (DataStore).
-- **P8 — Art & polish pass.** Low-poly asset production (boat, plane, crocs, flora, props), sound, VFX,
-  lighting/atmosphere, performance.
-- **P9 (later) — Endless mode.**
+- **P8 — Economy, upgrades, inventory & monetization.** Soft + premium currency, pre-run **boat/skill
+  upgrade shop**, **limited inventory** + purchasable slots, **paid revive** wiring, Robux
+  products/cosmetics, DataStore persistence.
+- **P9 — Art & polish pass.** Low-poly asset production (boat, plane, crocs, flora, props), sound, VFX,
+  lighting/atmosphere, mobile performance budget.
+- **P10 (later) — Endless mode.**
 
-> Order rationale: P1–P4 prove the game is fun with placeholder blocks before we invest in art (P8) or
-> full matchmaking (P6). We can playtest each phase live via the Studio MCP.
+> Order rationale: P1–P4 prove the game is fun with placeholder blocks before we invest in art (P9),
+> economy (P8), or full matchmaking (P6). We playtest each phase live via the Studio MCP.
+
+## Cross-cutting constraints (apply to every phase)
+
+- **Mobile-first** (hard requirement) — every control and GUI is touch-first and **scale-based**
+  (`UDim2` scale, `UIAspectRatioConstraint`/`UIScale`, safe-area aware), then maps to PC/console.
+  No keyboard-only actions; no fixed-pixel layouts. Enforced on P2 (roles/input), P6, P7, P8 GUIs.
+- **Server-authoritative** — currency, inventory, revives, and scoring are validated server-side
+  (never trust the client), per the shared `roblox-dev` rules. Critical since real money is involved.
 
 ## Object / asset inventory (Jungle's own — NOT Defender's Meshy library)
 
@@ -69,14 +80,20 @@ Source key: 🧱 build in code · ⛰️ sculpt terrain · 🎨 low-poly model (
 - Animal AI + spawning (river & bank) — P3
 - Combat: gunner weapon, boat HP, player down/revive — P3
 - Resource system: fuel drain, ammo, refuel/rearm at docks — P4
+- **Inventory system**: limited slots, carried items, purchasable extra space — P4 (purchase in P8)
 - Zone/campaign progression + difficulty ramp — P5
 - Day/night cycle — P5
 - Matchmaking + `TeleportService` reserved servers — P6
 - Scoring + leaderboards (DataStore) — P7
+- **Economy**: soft + premium currency, earn/spend, DataStore persistence — P8
+- **Monetization**: pre-run upgrade shop, paid revive, Robux products/cosmetics — P8
 
-### GUI — 🧱🎨
+### GUI — 🧱🎨 (all **mobile-first / scale-based**)
 - Lobby / team-up screen — P6
-- In-run **HUD**: fuel, ammo, boat HP, player states, roles, distance — P7
+- Pre-run **upgrade & shop** screen — P6/P8
+- **Touch controls** (drive joystick, shoot/catch/interact buttons) — P2 (per role)
+- In-run **HUD**: fuel, ammo, boat HP, player states, roles, distance, inventory — P7
+- **Inventory / shop** UI, **revive** prompt — P4/P8
 - Results / score screen — P7
 
 ### Sound — 🔊

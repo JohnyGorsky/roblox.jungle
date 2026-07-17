@@ -16,7 +16,35 @@ ammo at docks, pushing through escalating zones to reach the end.
 Co-op **river-run survival / action**. Tense but fun; escalating difficulty; short-to-medium sessions
 built around "ride → reach a dock → scavenge → ride further." Stylized **low-poly** art direction.
 
-## Structure (two places)
+## Platform & input — **mobile-first** (hard requirement)
+
+The game **must be mobile-ready.** Every control and every GUI is designed for touch first, then
+scales up to PC/console:
+- **GUI uses scale, not fixed pixels** — `UDim2` scale + `UIAspectRatioConstraint`/`UIScale`, safe-area
+  aware; readable and tappable on a phone. No pixel-perfect layouts that break on small screens.
+- **Touch controls** — on-screen buttons/joystick for driving, shooting, catching, interacting; tap
+  targets sized for thumbs; no keyboard-only actions. PC keys/mouse map onto the same actions.
+- **Performance** budget suits mobile (low-poly, sensible draw distance, streaming) — see P8.
+- This is a standing constraint on **every** GUI/role/interaction phase, not a one-time task.
+
+## Design reference — Dead Rails (north star)
+
+Our closest comparable is the hit Roblox co-op game **Dead Rails**: a team rides a **train** through
+an undead frontier, fuels/defends it, stops at towns to scavenge & buy, earns money, and races to
+reach the end. It's a **proven, popular template** — we're deliberately building the same
+shared-vehicle co-op survival loop, reskinned and differentiated:
+
+| Dead Rails | Jungle (ours) |
+|---|---|
+| Train on **rails** (linear track) | **Boat on a river** (river = the "track"; steer within it) |
+| Wild-West / **undead** | **Jungle** / crocodiles & predators |
+| Coal/fuel to move | **Gasoline** at docks |
+| Defend the train | Defend the **boat** (+ players, revive) |
+| Stop at **towns** to loot/buy | Stop at **docks** to scavenge/refuel |
+
+_Open question this raises:_ is our river effectively **on-rails** (linear, you mostly steer within a
+lane — matches the proven model and is simpler) or **free-drive** within the river? Leaning on-rails
+for v1. (See Job 001 notes; detailed mechanics borrowed/differentiated after research.)
 
 1. **Lobby place** — players gather and **team up (1–4)**. When ready, the team is **teleported to a
    private reserved gameplay server**.
