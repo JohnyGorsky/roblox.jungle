@@ -63,7 +63,32 @@ Players move freely between **stations** on the boat during the run (flexible fo
 
 - **Score & leaderboards** — primarily **distance / zones reached** + performance (animals fought,
   items caught, crew survival). Global + friends boards.
-- Monetization/unlocks: **decide later** — nail the core loop first.
+- **Persistent currency** _(name TBD)_ — earned by playing (distance, animals, items, completing runs),
+  saved across sessions. Spent on the pre-run upgrades below.
+
+## Monetization & economy (the game must sell)
+
+- **Pre-run upgrades** — in the **lobby / crash-site** before a run, players spend currency to
+  **upgrade the boat** (speed, HP, fuel capacity, weapon) and/or **unlock skills/perks** _(OPEN — e.g.
+  faster reload, better scavenging, tougher revives)_.
+- **Consumables & the paid revive hook** — players carry a **small number of free bandages** (limited
+  self-heal), but **reviving a downed teammate is paid** — via **Robux or a premium currency** — which
+  is a primary monetization lever. _(OPEN: exact pricing / free-revive cooldown vs fully paid.)_
+- **Robux products** _(OPEN, first pass)_ — revive packs / premium currency, boat skins & cosmetics,
+  permanent boat/skill unlocks, maybe a game pass (e.g. starter boat, extra bandages). Design so it's
+  **fair, not pay-to-win-hard** — paid revive + cosmetics + convenience, core skill still matters.
+- Two currencies likely: **soft** (earned, for upgrades) + **premium** (Robux-bought, for revives /
+  cosmetics). _(OPEN — confirm the two-currency split.)_
+
+## Inventory
+
+- Players have an **inventory** of carried items — bandages, fuel cans, ammo, collectibles, scavenged
+  loot.
+- It's **capacity-limited** (you can't hoard everything), which creates real choices at docks about
+  what to grab/keep.
+- **Extra inventory space is purchasable** (soft currency and/or Robux) — another monetization lever.
+- _OPEN: per-player vs shared boat stash; slot-based vs weight; do fuel/ammo count against it or are
+  they separate boat tanks._
 
 ## Open questions (tracked; resolve as we build)
 
@@ -72,6 +97,10 @@ Players move freely between **stations** on the boat during the run (flexible fo
 - [ ] Number/length of campaign zones for v1.
 - [ ] Which specific animals beyond crocodiles; do they attack boat, players, or both per-type.
 - [ ] Exact fail thresholds and revive rules.
+- [ ] Economy: one **soft** currency vs **soft + premium (Robux)** split; currency name(s).
+- [ ] Revive monetization: fully paid vs limited-free + paid; pricing / cooldown.
+- [ ] Which **pre-run upgrades & skills** exist (boat stats, perks).
+- [ ] Robux product list (revive packs, cosmetics, unlocks, game pass?).
 
 ## Assets needed — **Jungle's own** (the existing Meshy library is Defender's, not for Jungle)
 
