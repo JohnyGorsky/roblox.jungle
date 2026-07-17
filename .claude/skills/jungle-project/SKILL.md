@@ -1,61 +1,93 @@
 ---
 name: jungle-project
-description: Roblox Jungle project context — architecture, Studio Sync rules (auto-sync vs manual-copy), file/system map, code standards, the luau-lsp analyzer command, and non-negotiable rules. Consult this before doing ANY work in roblox.jungle. This is the source of truth for the game; its CLAUDE.md just points here. STUB — fill in as the game is built.
+description: Roblox Jungle project context — architecture, on-disk sync/ layout & Studio Sync rules, the Rojo project + luau-lsp analyzer command, code standards, and non-negotiable rules (server-authoritative, mobile-first). Consult this before doing ANY work in roblox.jungle. This is the source of truth for the game; its CLAUDE.md just points here.
 ---
 
 # Roblox Jungle — project context
 
-> **STUB.** This is the source of truth for the Roblox Jungle game, mirroring the shape of Defender's
-> `defender-project` skill. Fill each section in as the game takes shape. Use the shared `roblox-dev`
-> skill for engine APIs and the shared `roblox` agent for the job workflow. Follow the workspace
-> `GROUND-RULES.md` above all.
+Source of truth for the **Roblox Jungle** game. Read it before touching Jungle code. Use the shared
+`roblox-dev` skill for engine APIs and the shared `roblox` agent for the job workflow; follow the
+workspace `GROUND-RULES.md` above all.
 
-## Overview
+## What the game is
 
-_TODO: what Jungle is (see [GAME.md](../../../GAME.md))._ Roblox game in **Luau**, synced with Roblox
-Studio via Roblox Studio Sync.
+A 1–6 player co-op **jungle river-run survival** game (working title — name TBD): crash-land, take a
+boat down an escalating, animal-infested river, work swappable roles, scavenge fuel/ammo at docks, and
+reach the end. **Mobile-first.** Full vision + design in [GAME.md](../../../GAME.md); production roadmap
+in [Jobs/001/](../../../Jobs/001/implementation-plan.md); queued phases in [Planned/](../../../Planned/).
 
-## Architecture (client–server, FilteringEnabled)
+## Architecture
 
-Server is authoritative. _TODO: list the synced top-level folders and core systems once they exist._
+- **Two places:** a **lobby** (team up 1–6 → reserved-server teleport) and the **gameplay** place
+  (the river run). Server is **authoritative** — validate all client input; especially critical for
+  currency, inventory, revives, and scoring (real money involved).
+- **On-disk layout:**
+  - `sync/<Service>/` — all scripts that auto-sync with Studio (see sync table below).
+  - `assets/` — models/images/audio kept in-repo (non-script).
+  - `manual/` — content that does **not** auto-sync (StarterGui/Workspace etc.) and needs a manual
+    Studio copy.
+  - `Jobs/`, `Planned/` — job workflow.
 
 ## Sync behavior (critical when editing)
 
-**All scripts live under a top-level `sync/` folder on disk** (differs from Defender, which mirrors
-services at the repo root). Confirmed against the live Studio Explorer ⇄ icons (2026-07-17);
-`.jobconfig.json` mirrors this list.
+**All scripts live under a top-level `sync/` folder** (differs from Defender's repo-root layout).
+Verified live against the Studio Explorer ⇄ icons (2026-07-18); `.jobconfig.json` + `default.project.json`
+mirror this.
 
-- **Auto-syncs** (⇄ icon): `sync/ReplicatedFirst/`, `sync/ReplicatedStorage/`,
-  `sync/ServerScriptService/`, `sync/ServerStorage/`, and **both** `sync/StarterPlayer/StarterCharacterScripts/`
-  **and** `sync/StarterPlayer/StarterPlayerScripts/` (note: Jungle syncs StarterCharacterScripts too,
-  unlike Defender).
-- **Manual copy** (no ⇄): `sync/StarterGui/`, `sync/StarterPack/`, `sync/Workspace/`.
+- **Auto-syncs** (⇄): `sync/ReplicatedFirst/`, `sync/ReplicatedStorage/`, `sync/ServerScriptService/`,
+  `sync/ServerStorage/`, and **both** `sync/StarterPlayer/StarterCharacterScripts/` **and**
+  `sync/StarterPlayer/StarterPlayerScripts/` (Jungle syncs StarterCharacterScripts too, unlike Defender).
+- **Manual copy** (no ⇄): `StarterGui/`, `StarterPack/`, `Workspace/` — keep these under `manual/`.
 
-_TODO: confirm the Rojo `default.project.json` mapping and whether any manual-copy services exist on
-disk at all; keep `.jobconfig.json` aligned._
+## Rojo file-type suffix convention
 
-## Diagnostics — luau-lsp analyzer
+Under `sync/`, the filename suffix sets the instance class:
+- `*.server.luau` → **Script** (server logic; put in `ServerScriptService`).
+- `*.local.luau` → **LocalScript** (client; `StarterPlayerScripts`, `StarterCharacterScripts`, `ReplicatedFirst`).
+- `*.luau` → **ModuleScript** (shared code; `ReplicatedStorage`).
+- ⚠️ A LocalScript (`*.local.luau`) **won't run** in `ServerScriptService`/`ServerStorage`/`ReplicatedStorage`.
 
-_TODO: add the analyzer command once the project has one (e.g. `bash tools/luau-analyze.sh <file>` +
-`default.project.json` + generated `sourcemap.json`). After editing any `.luau`, run it and fix
-findings before moving on._
+## Rojo — analyzer only, NOT a sync tool
+
+Disk↔Studio syncing is handled by **Studio's built-in Sync** (not Rojo). **Rojo is used only to
+generate `sourcemap.json`** (`rojo sourcemap`, one command — never `rojo serve`) so the luau-lsp
+analyzer can resolve `require()`/`WaitForChild`/Instance types. `default.project.json` is just a
+description of the DataModel tree the analyzer reads; it syncs nothing.
+
+## Diagnostics — luau-lsp analyzer (run after every script edit)
+
+```bash
+bash tools/luau-analyze.sh <sync/path/File.luau>   # check the file(s) you just edited
+bash tools/luau-analyze.sh                          # whole-project sweep (sync/ roots)
+```
+
+It regenerates `sourcemap.json` from `default.project.json` (via Rojo 7.6.1) and runs `luau-lsp analyze`
+with the `roblox` platform. **After editing any `.luau`, run it and fix findings before moving on.**
+Without the sourcemap, every `require()`/`WaitForChild(...)` is a false positive. Requires the
+`JohnnyMorganz.luau-lsp` VS Code extension (settings in `.vscode/settings.json`).
 
 ## Non-negotiable rules
 
-Same engine baseline as the shared `roblox-dev` skill (server-authoritative, attribute signals,
-`pcall` around DataStore/HttpService/MarketplaceService, `task.*`, `.luau` + PascalCase). _TODO: add
-Jungle-specific rules as they emerge._
-
-## Jungle content skills
-
-_TODO: add game-specific playbook skills (add-*/design system/balance) as the game grows._
+- **Server-authoritative** (see shared `roblox-dev`): validate client input; `:GetAttributeChangedSignal`
+  for stat replication; `pcall` DataStore/HttpService/MarketplaceService; `task.*` scheduler.
+- **Mobile-first (hard requirement):** every control + GUI is touch-first and **scale-based** (`UDim2`
+  scale, `UIAspectRatioConstraint`/`UIScale`, safe-area aware); no keyboard-only actions; no fixed-pixel
+  layouts. See GAME.md "Platform & input".
+- `.luau` extension; PascalCase; `*Helper/*Definition/*Constants` suffixes; type annotations; `--!strict`
+  in new ModuleScripts where practical.
 
 ## Jobs
 
 `python ../roblox.workspace/tools/job.py new --project jungle "Title" "Requirements"` (then `plan`,
-`summary`, `release`). Keep `.jobconfig.json` accurate so `summary` categorizes files correctly.
+`summary`, `release`). `summary` uses `.jobconfig.json` for the sync table. Every job ends with a
+short player-facing `changelog.md` (GROUND-RULES §5).
 
-## Asset sources
+## Assets
 
-Meshy.ai (via `roblox-chars`) for models, Flaticon for icons, Pixabay for sounds — see
-`GROUND-RULES.md` §4.
+Meshy.ai for models + rigged animated characters (via `roblox-chars`); Creator Store search/insert
+(Claude proposes → you approve); Pixabay (sound), Flaticon (icons), ChatGPT (art). See GROUND-RULES §4.
+
+## Content skills
+
+_None yet — add game-specific playbook skills (a GUI design system, add-enemy/animal, etc.) as the
+game grows through the P1–P10 roadmap._
