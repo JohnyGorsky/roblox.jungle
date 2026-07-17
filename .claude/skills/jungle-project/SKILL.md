@@ -21,11 +21,18 @@ Server is authoritative. _TODO: list the synced top-level folders and core syste
 
 ## Sync behavior (critical when editing)
 
-_TODO: confirm against the live Studio Explorer ⇄ icons and keep `.jobconfig.json` in sync._ Roblox
-defaults (verify per project):
-- **Auto-syncs:** `ReplicatedFirst/`, `ReplicatedStorage/`, `ServerScriptService/`, `ServerStorage/`,
-  `StarterPlayer/StarterPlayerScripts/`.
-- **Manual copy:** `StarterGui/`, `StarterPack/`, `Workspace/`, rest of `StarterPlayer/`.
+**All scripts live under a top-level `sync/` folder on disk** (differs from Defender, which mirrors
+services at the repo root). Confirmed against the live Studio Explorer ⇄ icons (2026-07-17);
+`.jobconfig.json` mirrors this list.
+
+- **Auto-syncs** (⇄ icon): `sync/ReplicatedFirst/`, `sync/ReplicatedStorage/`,
+  `sync/ServerScriptService/`, `sync/ServerStorage/`, and **both** `sync/StarterPlayer/StarterCharacterScripts/`
+  **and** `sync/StarterPlayer/StarterPlayerScripts/` (note: Jungle syncs StarterCharacterScripts too,
+  unlike Defender).
+- **Manual copy** (no ⇄): `sync/StarterGui/`, `sync/StarterPack/`, `sync/Workspace/`.
+
+_TODO: confirm the Rojo `default.project.json` mapping and whether any manual-copy services exist on
+disk at all; keep `.jobconfig.json` aligned._
 
 ## Diagnostics — luau-lsp analyzer
 
