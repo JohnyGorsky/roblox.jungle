@@ -1,0 +1,16 @@
+{
+  "_comment": "STUB — Roblox default project layout. Verify against the live Studio Explorer ⇄ icons and this game's default.project.json, then correct. Used by ../roblox.workspace/tools/job.py for the final-summary sync table. Order matters: synced_paths win over non_synced_paths.",
+  "synced_paths": [
+    "ReplicatedFirst/",
+    "ReplicatedStorage/",
+    "ServerScriptService/",
+    "ServerStorage/",
+    "StarterPlayer/StarterPlayerScripts/"
+  ],
+  "non_synced_paths": [
+    "StarterGui/",
+    "StarterPlayer/",
+    "StarterPack/",
+    "Workspace/"
+  ]
+}
