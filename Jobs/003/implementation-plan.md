@@ -11,10 +11,12 @@ art, no combat/roles/fuel. Built and iterated **live in the "Jungle run" place v
 
 ## Approach
 
-**Built live in Studio (Workspace/Terrain — not synced to disk; user saves the place):**
-1. **Winding river terrain** — sculpt a grass island base, then carve a **meandering** water channel
-   along a sine centerline (`FillBall` channel + water, overlapping steps for a smooth curve).
-2. **Placeholder boat** — a simple anchored/again unanchored Part (block) at the river start.
+**Terrain — HYBRID (revised 2026-07-18 after the scripted-terrain struggle; see workspace Job 003):**
+1. **Winding river + island** — **hand-sculpted by the user** in Studio's Terrain Editor (Sculpt/Draw
+   + Sea Level for water), which is faster and looks better than scripting it. Claude does NOT script
+   the hero river. If a deterministic greybox water surface is wanted, Claude can drop a flat
+   translucent water **Part** at the waterline (see `roblox-terrain` skill recipe).
+2. **Placeholder boat** — built by Claude's code at the river start.
 
 **On disk (sync/ → auto-syncs; the real deliverable):**
 3. **Boat controller — physics, not teleport.** The boat is an unanchored low-density hull that

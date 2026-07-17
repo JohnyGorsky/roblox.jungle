@@ -1,38 +1,40 @@
 --!strict
 -- BoatServer.server.luau — P1 greybox physics boat.
 --
--- Builds a placeholder boat at the river start and drives it with REAL forces so it
--- feels like an engine-driven boat (momentum + drift), not "hold-W-and-slide":
---   • VectorForce "Thrust"  — throttle × the hull's look-vector (world space, at CoM)
---   • VectorForce "Current" — the river pushes the boat downstream along the channel
---   • AngularVelocity "Steer" — yaw rate; linear momentum carries the boat = drift
--- Input comes from a VehicleSeat (WASD + default mobile controls; auto network-ownership).
--- Buoyancy is provided by Roblox terrain water (hull density < 1). Greybox only — the real
--- boat model + art swap in at P9. Tune the CONSTANTS for feel.
+-- Builds a placeholder boat at the river start and drives it with REAL forces so it feels
+-- like an engine-driven boat (momentum + drift), not "hold-W-and-slide":
+--   • Buoyancy  — a spring force floats the hull at the water line (deterministic; does NOT
+--                 rely on terrain-water buoyancy, which let the boat sink/fall through).
+--   • Thrust    — VectorForce = throttle × hull look-vector (world; at CoM).
+--   • Current   — VectorForce pushing downstream along the winding channel.
+--   • Steer     — AngularVelocity yaw; linear momentum carries the boat = drift.
+-- Input: a VehicleSeat (WASD + default mobile controls; auto network-ownership to the driver).
+-- Greybox only — real boat model/art swap in at P9. Tune the CONSTANTS for feel.
 --
--- NOTE: the CENTERLINE constants below must match the river sculpt (Job 003). When the river
--- becomes shared data (P5), both the terrain and this current will read from it.
+-- NOTE: CENTERLINE + WATER_Y must match the river sculpt (Job 003). When the river becomes
+-- shared data (P5) both the terrain and this will read from it.
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 -- ── tunables ─────────────────────────────────────────────────────────────
-local START = Vector3.new(-91.5, 9, -430)   -- river start (terrain water surface ~ y=6)
+local WATER_Y = 12
+local START = Vector3.new(-91.5, WATER_Y + 4, -430)  -- river start
 local HULL_SIZE = Vector3.new(14, 3, 28)
-local DENSITY = 0.6                           -- < 1 so the hull floats in terrain water
-local THRUST = 90000                          -- forward force at full throttle
-local REVERSE = 45000                         -- weaker in reverse
-local TURN = 1.6                              -- yaw rad/s at full steer
-local CURRENT = 20000                         -- downstream push (0 to disable)
+local DENSITY = 0.7
+local THRUST = 120000        -- forward force at full throttle
+local REVERSE = 60000
+local TURN = 1.6             -- yaw rad/s at full steer
+local CURRENT = 22000        -- downstream push (0 to disable)
+local FLOAT_K = 8            -- buoyancy spring stiffness
+local FLOAT_D = 3            -- buoyancy damping
 
--- river centerline: x = AMP * sin(z * FREQ)  (matches the sculpt)
-local AMP = 110
+local AMP = 110              -- river centerline: x = AMP * sin(z * FREQ)
 local FREQ = (2 * math.pi) / 320
 -- ─────────────────────────────────────────────────────────────────────────
 
--- Unit tangent of the channel at world-z (the "downstream" direction).
 local function downstream(z: number): Vector3
-	local dx = AMP * FREQ * math.cos(z * FREQ)   -- d/dz of the centerline
+	local dx = AMP * FREQ * math.cos(z * FREQ)
 	return Vector3.new(dx, 0, 1).Unit
 end
 
@@ -57,7 +59,6 @@ local function buildBoat(): Model
 	att.Name = "Root"
 	att.Parent = hull
 
-	-- driver seat: supplies Throttle/Steer and hands the driver network ownership
 	local seat = Instance.new("VehicleSeat")
 	seat.Name = "DriverSeat"
 	seat.Size = Vector3.new(4, 1, 5)
@@ -69,21 +70,19 @@ local function buildBoat(): Model
 	weld.Part1 = seat
 	weld.Parent = hull
 
-	local thrust = Instance.new("VectorForce")
-	thrust.Name = "Thrust"
-	thrust.Attachment0 = att
-	thrust.RelativeTo = Enum.ActuatorRelativeTo.World
-	thrust.ApplyAtCenterOfMass = true
-	thrust.Force = Vector3.zero
-	thrust.Parent = hull
-
-	local current = Instance.new("VectorForce")
-	current.Name = "Current"
-	current.Attachment0 = att
-	current.RelativeTo = Enum.ActuatorRelativeTo.World
-	current.ApplyAtCenterOfMass = true
-	current.Force = Vector3.zero
-	current.Parent = hull
+	local function force(name: string): VectorForce
+		local f = Instance.new("VectorForce")
+		f.Name = name
+		f.Attachment0 = att
+		f.RelativeTo = Enum.ActuatorRelativeTo.World
+		f.ApplyAtCenterOfMass = true
+		f.Force = Vector3.zero
+		f.Parent = hull
+		return f
+	end
+	force("Buoy")
+	force("Thrust")
+	force("Current")
 
 	local steer = Instance.new("AngularVelocity")
 	steer.Name = "Steer"
@@ -100,15 +99,30 @@ end
 local boat = buildBoat()
 local hull = boat.PrimaryPart :: BasePart
 local seat = boat:FindFirstChild("DriverSeat") :: VehicleSeat
+local buoy = hull:FindFirstChild("Buoy") :: VectorForce
 local thrust = hull:FindFirstChild("Thrust") :: VectorForce
 local current = hull:FindFirstChild("Current") :: VectorForce
 local steer = hull:FindFirstChild("Steer") :: AngularVelocity
 
 RunService.Heartbeat:Connect(function()
+	local pos = hull.Position
+	local mass = hull.AssemblyMass
+	local g = Workspace.Gravity
+
+	-- buoyancy: hold the hull at the water line with a spring-damper (only near/below surface)
+	if pos.Y < WATER_Y + 5 then
+		local spring = mass * ((WATER_Y - pos.Y) * FLOAT_K - hull.AssemblyLinearVelocity.Y * FLOAT_D)
+		buoy.Force = Vector3.new(0, math.max(mass * g + spring, 0), 0)
+	else
+		buoy.Force = Vector3.zero
+	end
+
+	-- drive
 	local t = seat.Throttle -- 1 (W) / -1 (S) / 0
 	local s = seat.Steer    -- 1 (D) / -1 (A) / 0
-	local mag = (t >= 0) and THRUST or REVERSE
-	thrust.Force = hull.CFrame.LookVector * (t * mag)
-	current.Force = downstream(hull.Position.Z) * CURRENT
+	thrust.Force = hull.CFrame.LookVector * (t * ((t >= 0) and THRUST or REVERSE))
+	current.Force = downstream(pos.Z) * CURRENT
 	steer.AngularVelocity = Vector3.new(0, -s * TURN, 0)
 end)
+
+print(("[Boat] built at %s (water y=%d)"):format(tostring(START), WATER_Y))
