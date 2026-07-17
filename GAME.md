@@ -1,13 +1,14 @@
 # Jungle *(working title — name TBD)* — game description
 
-> **v0.2 working draft** (Job 001). Core concept + core mechanics agreed; finer details marked _OPEN_.
-> High-level vision lives here; the production roadmap + object inventory live in
-> [Jobs/001/implementation-plan.md](Jobs/001/implementation-plan.md); queued work goes in
+> **v1.0 — concept LOCKED** (Job 001, 2026-07-18). Core concept, market position, and core mechanics
+> agreed. Remaining detail is tracked in "Open questions" + "Not yet covered" below and resolved as
+> each build phase comes up. High-level vision lives here; the production roadmap + object inventory
+> live in [Jobs/001/implementation-plan.md](Jobs/001/implementation-plan.md); queued phases are in
 > [Planned/](Planned/).
 
 ## One-line pitch
 
-A 1–4 player co-op survival game: your plane crashes in the jungle, so you take a boat down a
+A co-op survival game (~1–6 players): your plane crashes in the jungle, so you take a boat down a
 dangerous river — crocodile- and predator-infested — each player working a role, scavenging fuel and
 ammo at docks, pushing through escalating zones to reach the end.
 
@@ -46,7 +47,32 @@ _Open question this raises:_ is our river effectively **on-rails** (linear, you 
 lane — matches the proven model and is simpler) or **free-drive** within the river? Leaning on-rails
 for v1. (See Job 001 notes; detailed mechanics borrowed/differentiated after research.)
 
-1. **Lobby place** — players gather and **team up (1–4)**. When ready, the team is **teleported to a
+## Market & competition (why this can win)
+
+Landscape scan (Jul 2026):
+- **Land "Dead Rails-likes" are saturated** — Dead Roads (~40M visits), DEADFRONT (~15M), plus
+  anime/magic/pets reskins; Dead Rails still leads but is well off its 2025 peak.
+- **The water/river cell is wide open.** The closest analog, **Dead Sails** ("Dead Rails but a boat,"
+  sea/pirate, 4-player) peaked ~22K concurrent but **cratered to ~50 and looks abandoned** — no healthy
+  incumbent to beat.
+- **No jungle-themed river-boat game exists.** That exact cell is unoccupied — our clearest opening.
+
+**How we win (attacking the incumbents' weak spots):**
+1. **Own the jungle river** — canopy ambushes, rapids, caiman/piranha, fog, hostile tribes, temple
+   ruins: things a desert-train or open-ocean game structurally can't do.
+2. **River-specific mechanics** — current, branching tributaries (risk/reward), waterfalls/portage,
+   rising water, log/dam blockages. Fresh vs "drive straight across flat terrain."
+3. **Crisp interdependent roles** — Dead Sails' thin loop failed to retain; make coordination the fun.
+4. **Mobile-first** — the genre spreads via mobile/short-form; boat steering suits touch (our pillar).
+5. **Live-service + progression** — clones die from *abandonment*; a steady cadence of new stretches,
+   events, boats & upgrades is the moat.
+
+> _Cautionary tale:_ Dead Sails proves theme alone isn't enough — a thin loop + no updates kills
+> retention. Depth of roles + live ops is where we must not cut corners.
+
+## Structure (two places)
+
+1. **Lobby place** — players gather and **team up (~1–6)**. When ready, the team is **teleported to a
    private reserved gameplay server**.
 2. **Gameplay place** — the jungle river journey.
 
@@ -64,6 +90,21 @@ for v1. (See Job 001 notes; detailed mechanics borrowed/differentiated after res
 5. **Reach the end** — the campaign is a **finite sequence of zones** to a fixed END. (An **endless
    mode** comes in a later version.)
 
+> **Core tension (borrowed from Dead Rails):** the boat is **safest while moving** — attacks intensify
+> when you're **stopped** (at a dock, or stranded out of fuel). Since **fuel forces stops**, fuel
+> management becomes the central risk/reward decision of every run. Every stop is a deliberate gamble.
+
+## Day / night cycle (flips where it's safe — the run's heartbeat)
+
+- **Day** — the **river is the safe lane**; travel and make progress. Going ashore to scavenge is the
+  daytime risk (core tension: stopping = exposure).
+- **Night** — the **water turns deadly** (nocturnal predators, low visibility). Race to reach a **dock
+  before dark and hold out / fortify on land until dawn**, or gamble on **pushing through** with a
+  **searchlight** upgrade. Night is the "hold out and defend" set-piece.
+
+Rhythm: **travel + scavenge by day, survive the night.** Makes the **searchlight** a meaningful upgrade
+and turns "reach the next dock before nightfall" into constant fuel/time pressure.
+
 ## Player roles (swappable stations)
 
 Players move freely between **stations** on the boat during the run (flexible for 1–4 players):
@@ -71,6 +112,17 @@ Players move freely between **stations** on the boat during the run (flexible fo
 - **Gunner** — fires at attacking animals (ammo-limited).
 - **Catcher / scavenger** — grabs floating/nearby items; manages supplies.
 - **4th station** _(OPEN — e.g. repair/mechanic to fix boat damage, or a second gunner)_.
+
+**Player count / scaling _(OPEN)_.** Baseline 1–4, but we may support **more players**. Options if we do:
+- **Limited stations + unlimited deck defenders** — only a few control-stations (driver, special guns),
+  but *any* extra player rides the deck and fights with a **personal weapon** + helps scavenge. Simple,
+  everyone's useful. _(leaning)_
+- **Bigger boat, more stations** — scale stations with team size (2 gunners, spotter, etc.).
+- **Convoy** — multiple boats for large groups (more systems).
+
+**Target (from market data):** the genre sweet spot is **~4–8 co-op** (Dead Rails 16-server cap but
+small squads; Dead Sails 4/expedition). Plan for a **~4–6 core crew** using the *limited-stations +
+deck-defenders* model so extras always contribute; larger lobbies/convoy are a later mode.
 
 ## Threats, stake & fail/win
 
@@ -83,30 +135,39 @@ Players move freely between **stations** on the boat during the run (flexible fo
 
 ## Resources
 
-- **Gasoline** — gates how far you ride between docks.
-- **Ammo** — gates the gunner.
+- **Gasoline** — the boat's fuel. Players **scavenge fuel at docks and physically haul it back to the
+  boat** to keep it running (like feeding coal to the Dead Rails train). The tank **drains as you ride**,
+  so the crew must keep topping it up between/at stops — run dry and you're **stranded = swarmed**.
+  This "keep feeding the boat" chore is a constant, shared crew job.
+- **Ammo** — gates the gunner; scavenged/bought and carried back too.
 - Likely also **repair kits / health**, and collectibles for score. _(OPEN)_
 
 ## Progression & replay
 
-- **Score & leaderboards** — primarily **distance / zones reached** + performance (animals fought,
-  items caught, crew survival). Global + friends boards.
-- **Persistent currency** _(name TBD)_ — earned by playing (distance, animals, items, completing runs),
-  saved across sessions. Spent on the pre-run upgrades below.
+- **Score & leaderboards** — distance / zones reached + performance (animals fought, items caught, crew
+  survival). Global + friends boards.
+- **Run objectives** — optional in-run goals (survive a night, N kills, reach the next dock fast) that
+  pay bonus cash + meta currency. Cheap to author, big replay boost (Dead Rails leans on these).
+- **Persistent unlocks** — meta currency (below) buys permanent **boat upgrades** and **skills/classes**
+  in the lobby; individual runs otherwise start fresh.
 
-## Monetization & economy (the game must sell)
+## Economy & monetization (must sell — but *fair, not pay-to-win*)
 
-- **Pre-run upgrades** — in the **lobby / crash-site** before a run, players spend currency to
-  **upgrade the boat** (speed, HP, fuel capacity, weapon) and/or **unlock skills/perks** _(OPEN — e.g.
-  faster reload, better scavenging, tougher revives)_.
-- **Consumables & the paid revive hook** — players carry a **small number of free bandages** (limited
-  self-heal), but **reviving a downed teammate is paid** — via **Robux or a premium currency** — which
-  is a primary monetization lever. _(OPEN: exact pricing / free-revive cooldown vs fully paid.)_
-- **Robux products** _(OPEN, first pass)_ — revive packs / premium currency, boat skins & cosmetics,
-  permanent boat/skill unlocks, maybe a game pass (e.g. starter boat, extra bandages). Design so it's
-  **fair, not pay-to-win-hard** — paid revive + cosmetics + convenience, core skill still matters.
-- Two currencies likely: **soft** (earned, for upgrades) + **premium** (Robux-bought, for revives /
-  cosmetics). _(OPEN — confirm the two-currency split.)_
+Three-tier model mirroring Dead Rails' proven, well-liked economy:
+- **In-run cash** — scavenged/earned during a run, spent at **dock shops** (fuel, ammo, weapons,
+  healing, repairs). **Resets each run.**
+- **Persistent meta currency** _(name TBD)_ — rare; from **run objectives** + completing runs. Spent in
+  the **lobby** on permanent **boat upgrades**, **skills/classes**, and starting gear. **Earnable free.**
+- **Robux** — **convenience & cosmetics only**: **paid self-revive**, **extra inventory slots**,
+  cosmetics/skins, maybe a starter boat / game pass. Core power stays earnable.
+
+**Revive model** (matches Dead Rails, and your brief): a downed player is revived by a **teammate
+holding interact with a bandage** — bandages are **scarce**, so it's a real resource cost. On death,
+the paid **self-revive** (Robux, short window) is the monetized safety net. A skill/class may grant a
+free revive ability.
+
+> **Design principle:** Dead Rails' monetization works *because it "feels fair."* Paid = convenience +
+> cosmetics, never raw power. We hold to that — it's why the model sells long-term.
 
 ## Inventory
 
@@ -117,6 +178,41 @@ Players move freely between **stations** on the boat during the run (flexible fo
 - **Extra inventory space is purchasable** (soft currency and/or Robux) — another monetization lever.
 - _OPEN: per-player vs shared boat stash; slot-based vs weight; do fuel/ammo count against it or are
   they separate boat tanks._
+
+## Not yet covered (design/production backlog)
+
+Captured so nothing's forgotten; most resolve inside their build phase. ★ = decide early (foundational).
+
+**Design**
+- Onboarding / tutorial (esp. first-time **mobile** players)
+- ★ Combat depth: weapon types, **mobile aiming** (auto-aim?), reload, melee
+- ★ Enemy roster beyond crocs + a spawn/pacing "director"
+- Health / downed-timer / healing model (bandages vs medkits)
+- ★ Boat feel: steering model, buoyancy/physics, collisions, camera
+- ★ Map authoring: handcrafted vs procedural zones, length, checkpoints
+- End-game: what happens after the finish; prestige / replay hook
+- Boat variety & customization (stats, skins)
+
+**Systems / tech**
+- ★ Matchmaking: party, friends-only vs fill, join/leave/rejoin mid-run
+- ★ Reserved-server teleport + data hand-off (lobby → game)
+- ★ Persistence: DataStore for meta currency / unlocks / stats + data-loss safety
+- ★ Anti-cheat / strict **server authority** (critical — real money involved)
+- Cross-server leaderboards; performance/streaming budget for mobile; analytics/KPIs
+
+**Content / art**
+- ★ Jungle's own **GUI design system** (its own skill, like Defender's `roblox-gui`)
+- Art style guide (low-poly consistency); asset pipeline (Meshy + Creator Store + Pixabay/Flaticon/
+  ChatGPT — see `GROUND-RULES.md §4`); music & ambient audio; VFX / game-feel juice
+
+**Live-ops / business**
+- Daily rewards, quests/missions, seasons/events (battle pass?)
+- Exact Robux product list + pricing; engagement-based payouts
+- Compliance: age rating, avoid gambling-like mechanics; accessibility; localization
+
+**Go-to-market**
+- ★ **The game NAME** (still TBD) + icon/thumbnail — the genre spreads via short-form/mobile discovery
+- Trailer / clip-worthy set-pieces
 
 ## Open questions (tracked; resolve as we build)
 
