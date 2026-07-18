@@ -52,6 +52,6 @@ and fits the role model (helpers = fighters with sword/gun).
 ## Checklist
 
 - [x] Requirements reviewed (this intake)
-- [~] Implementation plan created & agreed (plan written — awaiting user go-ahead)
-- [ ] Implementation completed
-- [ ] Final summary + changelog written
+- [x] Implementation plan created & agreed
+- [x] Implementation completed
+- [x] Final summary + changelog written
