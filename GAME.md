@@ -1,4 +1,6 @@
-# Jungle *(working title — name TBD)* — game description
+# Last River — game description
+
+*(Working title: **Last River**. Dev/repo name stays `roblox.jungle`.)*
 
 > **v1.0 — concept LOCKED** (Job 001, 2026-07-18). Core concept, market position, and core mechanics
 > agreed. Remaining detail is tracked in "Open questions" + "Not yet covered" below and resolved as
@@ -241,7 +243,8 @@ Captured so nothing's forgotten; most resolve inside their build phase. ★ = de
 - Compliance: age rating, avoid gambling-like mechanics; accessibility; localization
 
 **Go-to-market**
-- ★ **The game NAME** (still TBD) + icon/thumbnail — the genre spreads via short-form/mobile discovery
+- ✅ **Name: "Last River"** (working title, locked 2026-07-18). Still need icon/thumbnail — the genre
+  spreads via short-form/mobile discovery. (Optional: verify the name isn't taken on Roblox.)
 - Trailer / clip-worthy set-pieces
 
 ## Open questions (tracked; resolve as we build)
