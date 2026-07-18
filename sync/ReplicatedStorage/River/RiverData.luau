@@ -16,8 +16,10 @@ RiverData.Z_START = 0             -- world Z of the river's upstream start
 RiverData.END_DISTANCE = 18000    -- campaign finish distance (studs) ≈ a long ~15–25 min run
 RiverData.ENDLESS = false         -- true = no end (P10 endless mode)
 RiverData.HOOK_SPACING = 220      -- avg studs between obstacle/ramp placement hooks
+RiverData.DOCK_SPACING = 2200     -- studs between refuel docks
 
 export type Hook = { z: number, x: number, kind: string } -- kind = "obstacle" | "ramp"
+export type Dock = { z: number, x: number, side: number }
 
 -- meander: centerlineX(z) = A1·noise(z·F1) + A2·noise(z·F2). Big slow bends + smaller wiggles.
 -- (noise ≈ ±0.5, so ×2 to use its full range; amplitudes are ~studs of side-to-side.)
@@ -111,6 +113,25 @@ function RiverData.hooksBetween(z0: number, z1: number): { Hook }
 		end
 	end
 	return hooks
+end
+
+-- Deterministic refuel dock positions (on a bank) with z in [z0, z1]. Seeded → same docks every run.
+function RiverData.docksBetween(z0: number, z1: number): { Dock }
+	ensureSeed()
+	local docks: { Dock } = {}
+	local spacing = RiverData.DOCK_SPACING
+	local endZ = RiverData.Z_START + RiverData.END_DISTANCE
+	local first = math.max(1, math.ceil((z0 - RiverData.Z_START) / spacing)) -- no dock at the very start
+	local last = math.floor((z1 - RiverData.Z_START) / spacing)
+	for i = first, last do
+		local z = RiverData.Z_START + i * spacing
+		if RiverData.ENDLESS or z <= endZ then
+			local side = if math.noise(z * 0.013 + offW, 7.7) >= 0 then 1 else -1
+			local x = RiverData.centerlineX(z) + side * (RiverData.widthAt(z) * 0.5 - 4) -- at the water's edge
+			docks[#docks + 1] = { z = z, x = x, side = side }
+		end
+	end
+	return docks
 end
 
 function RiverData.worldToDistance(z: number): number

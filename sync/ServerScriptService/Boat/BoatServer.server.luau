@@ -157,6 +157,13 @@ boat:GetAttributeChangedSignal("HP"):Connect(function()
 	end
 end)
 
+-- boat fuel (Job 010): drains as you ride; empty → the engine cuts and you drift (stranded)
+local MAX_FUEL = 100
+local FUEL_IDLE = 0.15 -- drain/s with the engine on
+local FUEL_THROTTLE = 0.85 -- extra drain/s at full throttle
+boat:SetAttribute("MaxFuel", MAX_FUEL)
+boat:SetAttribute("Fuel", MAX_FUEL)
+
 -- SERVER-OWNED physics. VehicleSeat hands ownership to the driver on sit; re-assert server ownership
 -- so this loop reads accurate state and stays authoritative.
 local function claimServerOwnership()
@@ -202,6 +209,14 @@ RunService.Heartbeat:Connect(function(dt: number)
 	local look = hull.CFrame.LookVector
 	local t = seat.Throttle -- 1 (W) / -1 (S) / 0
 	local s = seat.Steer    -- 1 (D) / -1 (A) / 0
+
+	-- fuel: drain while the engine runs; empty = no engine (drift at the current's mercy = stranded)
+	local fuel = (boat:GetAttribute("Fuel") :: number?) or 0
+	if fuel > 0 then
+		boat:SetAttribute("Fuel", math.max(0, fuel - (FUEL_IDLE + FUEL_THROTTLE * math.abs(t)) * dt))
+	else
+		t = 0
+	end
 	thrust.Force = look * (t * ((t >= 0) and THRUST or REVERSE))
 	current.Force = downstream(pos.Z) * CURRENT
 	drag.Force = Vector3.new(-vel.X * DRAG, 0, -vel.Z * DRAG) -- horizontal only; Y left to buoyancy
