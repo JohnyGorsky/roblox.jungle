@@ -12,32 +12,33 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
 - **`RunStarted` (new game-state flag)** — `Workspace:SetAttribute("RunStarted", …)`. None existed before;
   this is the first real game-state gate (replicates to clients for spawn + HUD).
 - **`StagingServer`** (`sync/ServerScriptService/Staging/`) —
-  - **Moors the boat** at spawn: `hull.Anchored = true` + `Tied = true` (safe from the constant current;
-    `claimServerOwnership` early-returns on a grounded assembly so ownership isn't fought — same as
-    DockServer's tie). The boat spawns **off the pier** (~26 studs) with a visible brown rope to the winch.
-  - **Pull-to-reel:** a **"Pull rope"** ProximityPrompt on a placeholder **Winch** cube reels the boat in
-    toward the pier (`PULL_STEP` per pull, smooth lerp, rope shortens). It **docks alongside a jetty**,
-    kept **`DOCK_MARGIN` (6) studs of clear water off the shore** so it never beaches (docked X is computed
-    from the boat's beam + margin); all collidable hub geometry stays on the land side so nothing overlaps
-    the boat. Verified: docked boat floats level at the waterline, launches free without sinking or NaN.
-  - **On-boat detection = downward raycast** hitting only boat parts (a bounding box wrongly counted
-    players on the pier, ~2 studs from the docked hull, letting them untie from shore and sail the boat off
-    without them). Verified: pier = 0, boat = 1.
-  - **Server ownership re-asserted on untie** (`hull:SetNetworkOwner(nil)`): the boat was anchored at build
-    so BoatServer's `claimServerOwnership` had been skipped — a player **standing** (not seated) on the freed
-    boat became its network owner, and the client integrated the current force so the boat **rocketed away
-    and left the player swimming**. Re-asserting server ownership on untie makes it behave like the base game
-    (server-authoritative, driver drives). Verified with a STANDING player: after untie the boat is
-    server-owned, stays put (dZ −0.2), floats (no NaN), and the player stays aboard (Y above water).
-  - **Then untie = START:** once docked the same prompt becomes **"Untie rope — START"**. Untie requires
-    **someone aboard** (`OnBoatCount ≥ 1`, so the boat can't sail off without the crew) → `RunStarted=true`,
-    unanchor, `Tied=false`, remove the rope + prompt. **The hub is left standing** (crew has sailed off) —
-    it is NOT torn down (fixed the "everything disappears" issue).
+  - **Moors the boat WITHOUT anchoring** (the hard-won core fix). The boat stays **dynamic + server-owned**
+    and is held by an **`AlignPosition`** constraint. Releasing = **`:Destroy()` the constraint** — there is
+    NO anchor→unanchor transition. *(Why: anchoring the boat then unanchoring it while a client-owned player
+    stood on it exploded the assembly in one physics step and the engine deleted the boat — the "boat
+    disappears on untie" bug. Diagnosed via logging: `hull.Parent → nil` with no `Destroying` event. The
+    base game never anchors its boat, so it never hit this. Recorded in the roblox-physics skill "Mooring"
+    section.)*
+  - **AlignPosition holds X/Z only, not Y** — buoyancy owns the vertical float; driving both Y made the boat
+    **bounce**. Each frame the hold's target Y is re-aimed at the hull's current Y (zero Y error → zero Y
+    force). Verified: moored vertical range ~0.6 studs (gentle bob, was jumping).
+  - **Terrain-aware docking:** the boat reels to a point whose **whole hull footprint** (a probed grid) is
+    over water deep enough to clear the underwater bank, kept well out (`EXTRA_CLEAR`) so it never beaches.
+    A jetty extends from the shore to reach it.
+  - **Pull-to-reel:** a **"Pull rope"** ProximityPrompt on a placeholder **Winch** cube moves the hold target
+    toward the dock in steps; the boat glides in (a player standing on it rides along). Once docked the
+    prompt becomes **"Untie rope — START"**.
+  - **On-boat detection = downward raycast** hitting only boat parts (a bounding box wrongly counted players
+    on the pier ~2 studs off the hull). Verified: pier = 0, boat = 1.
+  - **Untie = START:** requires **someone aboard** (`OnBoatCount ≥ 1`, so the boat can't sail off without
+    the crew) → `RunStarted=true`, **destroy the hold constraint** (boat is already dynamic + server-owned →
+    it drifts/drives free, no explosion), `Tied=false`, remove the rope + prompt. **The hub is left standing**
+    (crew has sailed off) — it is NOT torn down (fixed the "everything disappears" issue).
   - **Greybox hub** (a `StagingArea` folder — clearly marked PLACEHOLDER, for the hand-built hub): a bank
     platform, a "plane wreck" block, a gangway, and the **Winch cube** (placeholder for a future winch
     asset). Publishes `HubSpawn` (Vector3) for the spawn logic.
-  - **Occupancy counter:** while staging, publishes `Boat.OnBoatCount` / `Boat.CrewCount` (players whose
-    HRP is inside the hull's oriented box, expanded for the back deck) for the HUD.
+  - **Occupancy counter:** while staging, publishes `Boat.OnBoatCount` / `Boat.CrewCount` (players standing
+    on a boat part, via a downward raycast) for the HUD.
 - **Spawn branch** (`PlayerCombat.server.luau`) — before start, spawn at the **hub** (`HubSpawn`); after
   start, on the **boat** (mid-run respawns land on the boat, as before).
 - **Threat gate** (`EnemyServer.server.luau`) — the sea + land spawn directors now also require
@@ -59,11 +60,10 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
 - [x] **Start opens the gate** (performed StagingServer's exact `startRun` state change): `RunStarted=true`
       → boat **unanchored** (drivable) + `Tied=false`, `StagingArea` removed, **3 enemies** spawned within 3s.
 - [x] **Post-start respawn** lands on the **boat** (3.9 studs from hull), not the hub.
-- [~] **The physical untie prompt-hold** couldn't be driven by the MCP harness (same limitation as #014's
-      seated input; `fireproximityprompt`/`InputHoldBegin` aren't processed headless). The
-      `prompt.Triggered → startRun` wiring is a one-line connect identical to DockServer's proven tie/untie,
-      and the resulting started-state was verified by applying the same state change. **Needs a human
-      click-the-prompt playtest** to close.
+- [x] **Full flow confirmed by human playtest** (pull → board → untie → sail). Getting there took several
+      rounds — the boat "disappeared on untie" until the anchor→unanchor explosion was root-caused (logging)
+      and replaced with the constraint-hold; then a buoyancy/AlignPosition Y-fight bounce was fixed. Both
+      lessons are now in the roblox-physics skill.
 
 ## Files
 

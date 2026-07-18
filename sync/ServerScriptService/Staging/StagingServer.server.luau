@@ -34,9 +34,13 @@ local hull = boat:WaitForChild("Hull") :: BasePart
 -- run state: not started until someone unties
 Workspace:SetAttribute("RunStarted", false)
 
--- moor the boat (anchored → the constant current can't drift it; claimServerOwnership early-returns on a
--- grounded assembly so this doesn't fight network ownership — same pattern as DockServer's tie)
-hull.Anchored = true
+-- Moor WITHOUT anchoring. Anchoring an assembly and later unanchoring it while a client-owned player
+-- stands on it makes the physics explode in one step (the engine then removes the boat) — that was the
+-- "boat disappears" bug. Instead keep the boat DYNAMIC + server-owned and hold it with an AlignPosition
+-- (created below once we know the target). Releasing = destroying that constraint — no anchor transition.
+pcall(function()
+	hull:SetNetworkOwner(nil)
+end)
 boat:SetAttribute("Tied", true)
 
 local area = Instance.new("Folder")
@@ -72,8 +76,7 @@ block(
 )
 
 -- The boat spawns mid-channel; it starts moored OFF the pier. Players PULL the rope to reel it in until it
--- docks ALONGSIDE the jetty. Translate only (keep heading) so BoatServer's captured desiredYaw stays valid.
-local rotOnly = hull.CFrame - hull.CFrame.Position
+-- docks ALONGSIDE the jetty. Held dynamically (AlignPosition) — never anchored — so releasing is safe.
 local halfBeam = hull.Size.X / 2
 local hullBottomY = WATER_Y + 2 - hull.Size.Y / 2
 
@@ -103,11 +106,13 @@ local function maxGroundUnderBoat(edgeX: number): number
 	return m
 end
 local DECK_CLEAR = 3 -- studs the terrain must sit below the hull bottom
-local boatEdgeX = waterEdgeX
+local EXTRA_CLEAR = 16 -- keep the boat this much FURTHER out in deep water past the first clear point
+--                       (the probe's grid can miss a bump; staying well out guarantees no bank collision)
+local boatEdgeX = waterEdgeX - HUB_SIDE * 90 -- fallback: well out in the channel
 for step = 0, 90 do -- scan the boat outward from the shore until its whole footprint clears the bank
 	local testEdge = waterEdgeX - HUB_SIDE * step
 	if maxGroundUnderBoat(testEdge) < hullBottomY - DECK_CLEAR then
-		boatEdgeX = testEdge
+		boatEdgeX = testEdge - HUB_SIDE * EXTRA_CLEAR -- push further out for a safe margin
 		break
 	end
 end
@@ -116,10 +121,42 @@ local REEL_OFFSET = 26 -- how far off the pier it starts (studs)
 local dockedPos = Vector3.new(DOCKED_X, WATER_Y + 2, HUB_Z)
 local startPos = Vector3.new(DOCKED_X - HUB_SIDE * REEL_OFFSET, WATER_Y + 2, HUB_Z)
 
-local function moveBoatTo(p: Vector3)
-	boat:PivotTo(CFrame.new(p) * rotOnly)
+-- hold the boat DYNAMICALLY with an AlignPosition (no anchoring). Reeling = moving this target; releasing
+-- = destroying it. Heading stays downstream via BoatServer's own AlignOrientation.
+local moorAtt = hull:FindFirstChild("Root") :: Attachment?
+if not moorAtt then
+	local a = Instance.new("Attachment")
+	a.Name = "MoorRoot"
+	a.Parent = hull
+	moorAtt = a
 end
-moveBoatTo(startPos)
+local moor = Instance.new("AlignPosition")
+moor.Name = "Moor"
+moor.Mode = Enum.PositionAlignmentMode.OneAttachment
+moor.Attachment0 = moorAtt
+moor.ApplyAtCenterOfMass = true
+moor.MaxForce = 500000 -- must beat the boat's constant Current force (~12000) to hold it
+moor.MaxVelocity = 45 -- caps reel-in speed (smooth glide)
+moor.Responsiveness = 25
+moor.RigidityEnabled = false
+moor.Position = startPos
+moor.Parent = hull
+
+-- Hold X/Z only, NOT Y: BoatServer's buoyancy already controls Y, and two things driving the same axis
+-- fight → the boat bounces. Each frame we re-aim the target's Y at the hull's CURRENT Y (zero Y error →
+-- zero Y force), so the hold corrects horizontal drift while buoyancy owns the vertical float.
+local moorX, moorZ = startPos.X, startPos.Z
+do
+	local RunService = game:GetService("RunService")
+	local conn: RBXScriptConnection
+	conn = RunService.Heartbeat:Connect(function()
+		if not moor.Parent then
+			conn:Disconnect()
+			return
+		end
+		moor.Position = Vector3.new(moorX, hull.Position.Y, moorZ)
+	end)
+end
 
 -- hub spawn point (read by PlayerCombat before the run starts)
 local spawnPos = platformCenter + Vector3.new(0, 3, 0)
@@ -174,19 +211,17 @@ local function reel()
 		return
 	end
 	reeling = true
-	local from = hull.Position
-	local flat = Vector3.new(dockedPos.X - from.X, 0, dockedPos.Z - from.Z)
+	-- move the HOLD TARGET (X/Z) a step toward the dock; the AlignPosition glides the (dynamic) boat to it,
+	-- so a player standing on the boat rides along — no teleporting, no anchoring.
+	local flat = Vector3.new(dockedPos.X - moorX, 0, dockedPos.Z - moorZ)
 	local stepDist = math.min(PULL_STEP, flat.Magnitude)
-	local to = from + (if flat.Magnitude > 0.01 then flat.Unit else Vector3.zero) * stepDist
-	for i = 1, 12 do -- smooth haul over ~0.25s
-		moveBoatTo(from:Lerp(to, i / 12))
-		refreshRope()
-		task.wait(0.02)
-	end
-	if (Vector3.new(hull.Position.X - dockedPos.X, 0, hull.Position.Z - dockedPos.Z)).Magnitude <= DOCK_DIST then
+	local nt = Vector3.new(moorX, 0, moorZ) + (if flat.Magnitude > 0.01 then flat.Unit else Vector3.zero) * stepDist
+	moorX, moorZ = nt.X, nt.Z
+	refreshRope()
+	task.wait(0.35) -- let the boat glide to the new target
+	refreshRope()
+	if (Vector3.new(moorX - dockedPos.X, 0, moorZ - dockedPos.Z)).Magnitude <= DOCK_DIST then
 		docked = true
-		moveBoatTo(dockedPos)
-		refreshRope()
 		prompt.ActionText = "Untie rope — START"
 		print("[Staging] boat docked — board it, then untie to start")
 	end
@@ -202,15 +237,9 @@ local function startRun()
 	end
 	started = true
 	Workspace:SetAttribute("RunStarted", true)
-	hull.Anchored = false
-	-- clean release: zero any residual velocity from the anchored→unanchored transition (a standing player
-	-- on the freed boat can otherwise spike it into a NaN physics explosion) and re-assert SERVER ownership
-	-- (the boat was anchored at build so BoatServer's claimServerOwnership had been skipped).
-	hull.AssemblyLinearVelocity = Vector3.zero
-	hull.AssemblyAngularVelocity = Vector3.zero
-	pcall(function()
-		hull:SetNetworkOwner(nil)
-	end)
+	-- release = destroy the hold constraint. The boat was NEVER anchored (always dynamic + server-owned),
+	-- so there is no anchor→unanchor transition to explode. The current + driver take over cleanly.
+	moor:Destroy()
 	boat:SetAttribute("Tied", false)
 	rope:Destroy()
 	a0:Destroy()
@@ -219,33 +248,6 @@ local function startRun()
 	Workspace:SetAttribute("HubSpawn", nil)
 	-- leave the greybox hub standing behind (the crew has sailed off on the boat)
 	print("[Staging] rope untied — RUN STARTED")
-
-	-- DEBUG: trace what happens to the boat right after the real untie (owner / drift / stability)
-	local function ownerName(): string
-		local ok, no = pcall(function()
-			return hull:GetNetworkOwner()
-		end)
-		if not ok then
-			return "ERR"
-		end
-		return if no then no.Name else "SERVER(nil)"
-	end
-	print(("[Staging DEBUG] untie: anchored=%s owner=%s pos=(%.1f,%.1f,%.1f) onBoat=%s")
-		:format(tostring(hull.Anchored), ownerName(), hull.Position.X, hull.Position.Y, hull.Position.Z,
-			tostring(boat:GetAttribute("OnBoatCount"))))
-	task.spawn(function()
-		for i = 1, 8 do
-			task.wait(0.5)
-			if not hull or not hull.Parent then
-				print(("[Staging DEBUG] t+%.1fs — HULL GONE/DESTROYED"):format(i * 0.5))
-				return
-			end
-			local p, v = hull.Position, hull.AssemblyLinearVelocity
-			local finite = p.X == p.X and p.Y == p.Y and p.Z == p.Z
-			print(("[Staging DEBUG] t+%.1fs owner=%s pos=(%.0f,%.0f,%.0f) speed=%.1f finite=%s")
-				:format(i * 0.5, ownerName(), p.X, p.Y, p.Z, v.Magnitude, tostring(finite)))
-		end
-	end)
 end
 
 prompt.Triggered:Connect(function()
