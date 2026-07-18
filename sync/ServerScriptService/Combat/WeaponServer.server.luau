@@ -1,25 +1,25 @@
 --!strict
--- WeaponServer.server.luau — authoritative free-aim hitscan (Job 006 POC).
+-- WeaponServer.server.luau — authoritative free-aim hitscan for the LOOTED guns (Job 006 → Job 015).
 --
 -- The client sends only the world AIM POINT it tapped. The SERVER re-raycasts from the shooter's own
 -- character toward that point and applies damage — the client never says "I hit X", so it can't fake
--- hits. Rate-limited per player. Enemies are identified by the "Enemy" CollectionService tag.
+-- hits. Which gun fires (and its damage/range/spread/ammo) is decided SERVER-SIDE from the shooter's
+-- ActiveItem — you can only fire a gun you've looted into a slot and equipped. Ammo is PER-PLAYER,
+-- PER-GUN (Job 015): the mounted turret (GunServer) still uses the shared boat pool. Rate-limited.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
 
-local WEAPON_DAMAGE = 20 -- croc hp 40 → 2 clean hits
-local WEAPON_RANGE = 220 -- can only hit enemies within this distance of the shooter
-local FIRE_INTERVAL = 0.22 -- min seconds between shots per player (anti-spam)
-local ROUNDS_PER_AMMO = 12 -- shots reloaded per looted ammo crate
+local ItemDefs = require(ReplicatedStorage:WaitForChild("Inventory"):WaitForChild("ItemDefs"))
 
 local remote = Instance.new("RemoteEvent")
 remote.Name = "FireWeapon"
 remote.Parent = ReplicatedStorage
 
 local lastShot: { [Player]: number } = {}
+local rng = Random.new()
 
 local function enemyFrom(inst: Instance?): Model?
 	local cur: Instance? = inst
@@ -41,7 +41,7 @@ local function isDriver(player: Player): boolean
 	return seat ~= nil and seat:IsA("VehicleSeat") and hum ~= nil and seat.Occupant == hum
 end
 
--- who's allowed to shoot the handheld: not the driver, not manning the mounted gun, not "Busy"
+-- who's allowed to fire a handheld gun: not the driver, not manning the mounted gun, not "Busy"
 local function canShoot(player: Player): boolean
 	if isDriver(player) then
 		return false
@@ -57,53 +57,12 @@ local function canShoot(player: Player): boolean
 	return true
 end
 
-remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
-	if typeof(aimPoint) ~= "Vector3" then
-		return
-	end
-	local now = time()
-	local last = lastShot[player]
-	if last and now - last < FIRE_INTERVAL then
-		return
-	end
-	lastShot[player] = now
-
-	-- only certain players may shoot (not the driver, not while fishing/busy)
-	if not canShoot(player) then
-		return
-	end
-
-	-- ammo: draw a round from the boat's cargo; reload the round-pool from ammo crates; out of ammo = no shot
-	local ammoStore = Workspace:FindFirstChild("Boat")
-	if ammoStore then
-		local rounds = (ammoStore:GetAttribute("Rounds") :: number?) or 0
-		if rounds <= 0 then
-			local crates = (ammoStore:GetAttribute("Ammo") :: number?) or 0
-			if crates <= 0 then
-				return -- out of ammo
-			end
-			ammoStore:SetAttribute("Ammo", crates - 1)
-			rounds = ROUNDS_PER_AMMO
-		end
-		ammoStore:SetAttribute("Rounds", rounds - 1)
-	end
-
-	local char = player.Character
-	if not char then
-		return
-	end
-	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then
-		return
-	end
-
-	local origin = root.Position
-	local delta = aimPoint - origin
-	local dist = math.min(delta.Magnitude, WEAPON_RANGE) -- ray stops at range → enemies beyond can't be hit
+-- apply one ray of damage; returns true if it hit an enemy
+local function fireRay(char: Model, origin: Vector3, dir: Vector3, range: number, damage: number): boolean
+	local dist = math.min(dir.Magnitude, range)
 	if dist < 0.1 then
-		return
+		return false
 	end
-
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	local filter: { Instance } = { char }
@@ -113,19 +72,77 @@ remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
 	end
 	params.FilterDescendantsInstances = filter
 	params.IgnoreWater = true
-	local result = Workspace:Raycast(origin, delta.Unit * dist, params)
+	local result = Workspace:Raycast(origin, dir.Unit * dist, params)
 	if result then
 		local enemy = enemyFrom(result.Instance)
 		if enemy then
 			local before = (enemy:GetAttribute("HP") :: number?) or 0
-			local after = math.max(0, before - WEAPON_DAMAGE)
+			local after = math.max(0, before - damage)
 			enemy:SetAttribute("HP", after)
 			print(string.format("[Weapon] HIT %s  HP %d -> %d%s", enemy.Name, before, after, if after <= 0 then "  (KILLED)" else ""))
-		else
-			print(string.format("[Weapon] hit %s (%s) — not an enemy", result.Instance:GetFullName(), result.Material.Name))
+			return true
 		end
-	else
-		print("[Weapon] missed (nothing within range)")
+	end
+	return false
+end
+
+remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
+	if typeof(aimPoint) ~= "Vector3" then
+		return
+	end
+
+	-- which gun? decided server-side from what the player has equipped (can't fire an unlooted gun)
+	local def = ItemDefs.get(player:GetAttribute("ActiveItem") :: string?)
+	if not def or def.kind ~= "Gun" or not def.ammoAttr then
+		return
+	end
+
+	local now = time()
+	local last = lastShot[player]
+	if last and now - last < (def.fireInterval or 0.22) then
+		return
+	end
+	lastShot[player] = now
+
+	if not canShoot(player) then
+		return
+	end
+
+	-- per-player, per-gun ammo (Job 015)
+	local ammo = (player:GetAttribute(def.ammoAttr) :: number?) or 0
+	if ammo <= 0 then
+		return -- out of ammo for this gun
+	end
+	player:SetAttribute(def.ammoAttr, ammo - 1)
+
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not char or not root then
+		return
+	end
+
+	local origin = root.Position
+	local baseDelta = aimPoint - origin
+	if baseDelta.Magnitude < 0.1 then
+		return
+	end
+	local baseDir = baseDelta.Unit
+	local range = def.range or 220
+	local damage = def.damage or 20
+	local pellets = def.pellets or 1
+	local spread = def.spread or 0
+
+	for i = 1, pellets do
+		local dir = baseDir
+		if i > 1 and spread > 0 then
+			-- jitter the pellet direction within the spread cone
+			dir = (baseDir + Vector3.new(
+				rng:NextNumber(-spread, spread),
+				rng:NextNumber(-spread, spread),
+				rng:NextNumber(-spread, spread)
+			)).Unit
+		end
+		fireRay(char, origin, dir * range, range, damage)
 	end
 end)
 

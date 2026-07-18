@@ -12,8 +12,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 
+local ServerStorage = game:GetService("ServerStorage")
+
 local RiverData = require(ReplicatedStorage:WaitForChild("River"):WaitForChild("RiverData"))
 local EnemyDefs = require(ReplicatedStorage:WaitForChild("Enemies"):WaitForChild("EnemyDefs"))
+local ItemDefs = require(ReplicatedStorage:WaitForChild("Inventory"):WaitForChild("ItemDefs"))
+local InventoryService = require(ServerStorage:WaitForChild("Inventory"):WaitForChild("InventoryService"))
 
 local CAMP_AHEAD = 1400
 local BASIN_SIZE = 400 -- walkable jungle zone size (studs)
@@ -91,7 +95,28 @@ end)
 local function pickupLoot(player: Player, crate: Part)
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not char or not root or carrying[player] then
+	if not char or not root then
+		return
+	end
+
+	-- weapon / ammo crates GRANT to the loadout instantly (no carry, no Busy) — Job 015
+	local kind = (crate:GetAttribute("Kind") :: string?) or "Resource"
+	if kind == "Weapon" then
+		local id = (crate:GetAttribute("Id") :: string?) or "Pistol"
+		if InventoryService.grant(player, id) then
+			crate:Destroy()
+		end -- inventory full → leave the crate so the player can free a slot
+		return
+	elseif kind == "Ammo" then
+		local id = (crate:GetAttribute("Id") :: string?) or "Pistol"
+		local def = ItemDefs.get(id)
+		InventoryService.addAmmo(player, id, (def and def.ammoPerCrate) or 12)
+		crate:Destroy()
+		return
+	end
+
+	-- resource crates (gasoline/metal/turret-ammo): carry back to the boat cargo (existing behaviour)
+	if carrying[player] then
 		return
 	end
 	local resource = (crate:GetAttribute("Resource") :: string?) or "Metal"
@@ -158,6 +183,24 @@ local function buildCampAt(campPos: Vector3, parent: Instance, guards: number, r
 	end
 end
 
+-- a loadout crate: Kind "Weapon" (grants a gun to a slot) or "Ammo" (tops up that gun's ammo). No carry.
+local function makeKindCrate(pos: Vector3, kind: string, id: string, color: Color3, actionText: string, parent: Instance)
+	local crate = block("LootCrate", Vector3.new(4, 4, 4), color, CFrame.new(pos), parent, Enum.Material.Metal)
+	crate:SetAttribute("Kind", kind)
+	crate:SetAttribute("Id", id)
+	local loot = Instance.new("ProximityPrompt")
+	loot.Name = "LootPrompt"
+	loot.ActionText = actionText
+	loot.ObjectText = "Crate"
+	loot.HoldDuration = 1.2
+	loot.RequiresLineOfSight = false
+	loot.MaxActivationDistance = 10
+	loot.Parent = crate
+	loot.Triggered:Connect(function(player: Player)
+		pickupLoot(player, crate)
+	end)
+end
+
 local function tree(x: number, z: number, parent: Instance, rng: Random)
 	local h = rng:NextNumber(11, 18)
 	block("Trunk", Vector3.new(2, h, 2), Color3.fromRGB(90, 60, 40), CFrame.new(x, CLEAR_Y + h / 2, z), parent, Enum.Material.Wood)
@@ -196,7 +239,14 @@ local function buildLandingSite(dock: RiverData.Dock, index: number)
 	end
 	-- tiered camps: near (gasoline, 1 guard) + far/deeper (metal + ammo, 2 guards — better haul)
 	buildCampAt(Vector3.new(waterEdge + dock.side * 120, CLEAR_Y, dock.z), model, 1, { "Gasoline" })
-	buildCampAt(Vector3.new(waterEdge + dock.side * 300, CLEAR_Y, dock.z + 40), model, 2, { "Metal", "Ammo" })
+	local deepPos = Vector3.new(waterEdge + dock.side * 300, CLEAR_Y, dock.z + 40)
+	buildCampAt(deepPos, model, 2, { "Metal", "Ammo" })
+
+	-- loadout loot at the deep camp (Job 015): a scarce WEAPON crate + a handheld-ammo crate.
+	-- Weapon crates are the top reward — alternate pistol/shotgun by landing; spawn rate is tunable.
+	local weaponId = if index % 2 == 0 then "Shotgun" else "Pistol"
+	makeKindCrate(deepPos + Vector3.new(dock.side * 6, 2, -18), "Weapon", weaponId, ItemDefs.Items[weaponId].color, "Take " .. weaponId, model)
+	makeKindCrate(deepPos + Vector3.new(dock.side * 12, 2, -18), "Ammo", weaponId, Color3.fromRGB(200, 170, 80), weaponId .. " Ammo", model)
 	model.Parent = campsRoot
 end
 

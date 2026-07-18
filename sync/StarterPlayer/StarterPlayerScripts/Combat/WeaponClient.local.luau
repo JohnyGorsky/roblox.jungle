@@ -1,14 +1,17 @@
 --!strict
--- WeaponClient.local.luau — free-aim tap-to-hit shooting (Job 006 POC).
+-- WeaponClient.local.luau — free-aim tap-to-hit shooting for LOOTED guns (Job 006 → Job 015).
 --
--- On click/tap, raycast the camera through the pointer to find the world point aimed at, send ONLY
--- that point to the server (which authoritatively re-checks and applies damage), and draw a local
--- tracer for instant feedback. A centre crosshair helps aim on all devices.
+-- Only active when the equipped loadout item is a GUN (Pistol/Shotgun) — the Sword is handled by
+-- MeleeClient. On click/tap, raycast the camera through the pointer to a world point, send ONLY that
+-- point to the server (which authoritatively picks the gun, checks ammo, and applies damage), and draw a
+-- local tracer. The crosshair only shows while a gun is equipped and you can fire.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+
+local ItemDefs = require(ReplicatedStorage:WaitForChild("Inventory"):WaitForChild("ItemDefs"))
 
 local player = Players.LocalPlayer
 local remote = ReplicatedStorage:WaitForChild("FireWeapon") :: RemoteEvent
@@ -30,6 +33,14 @@ corner.CornerRadius = UDim.new(1, 0)
 corner.Parent = dot
 dot.Parent = gui
 gui.Parent = player:WaitForChild("PlayerGui")
+
+local function activeGun(): ItemDefs.ItemDef?
+	local def = ItemDefs.get(player:GetAttribute("ActiveItem") :: string?)
+	if def and def.kind == "Gun" then
+		return def
+	end
+	return nil
+end
 
 local function aimPointFrom(screenPos: Vector2): Vector3
 	local cam = Workspace.CurrentCamera
@@ -62,8 +73,11 @@ local function tracer(toPos: Vector3)
 	end)
 end
 
--- you can't use the handheld while driving, manning the mounted gun, or busy (fishing/carrying)
+-- you can only fire while a gun is equipped, not driving/manning the mounted gun, and not busy (carrying)
 local function localCanShoot(): boolean
+	if not activeGun() then
+		return false
+	end
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	if hum and hum.SeatPart and (hum.SeatPart.Name == "DriverSeat" or hum.SeatPart.Name == "GunSeat") then
@@ -75,13 +89,27 @@ local function localCanShoot(): boolean
 	return true
 end
 
+local function haveAmmo(): boolean
+	local def = activeGun()
+	if not def or not def.ammoAttr then
+		return false
+	end
+	return ((player:GetAttribute(def.ammoAttr) :: number?) or 0) > 0
+end
+
 local function updateCrosshair()
 	dot.Visible = localCanShoot()
+	dot.BackgroundColor3 = if haveAmmo() then Color3.new(1, 1, 1) else Color3.fromRGB(230, 80, 70)
 end
 
 local function fire(screenPos: Vector2)
 	if not localCanShoot() then
 		return -- server enforces this too; skip the round trip
+	end
+	if not haveAmmo() then
+		-- client-side "empty" cue: flash the crosshair red, don't send the shot
+		dot.BackgroundColor3 = Color3.fromRGB(230, 80, 70)
+		return
 	end
 	local aim = aimPointFrom(screenPos)
 	remote:FireServer(aim)
@@ -90,7 +118,7 @@ end
 
 UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 	if gameProcessed then
-		return
+		return -- tap landed on a GUI button (e.g. the hotbar)
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch then
@@ -98,8 +126,11 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 	end
 end)
 
--- keep the crosshair in sync with whether you can currently shoot
+-- keep the crosshair in sync with equip/ammo/busy/seat changes
 player:GetAttributeChangedSignal("Busy"):Connect(updateCrosshair)
+player:GetAttributeChangedSignal("ActiveItem"):Connect(updateCrosshair)
+player:GetAttributeChangedSignal("AmmoPistol"):Connect(updateCrosshair)
+player:GetAttributeChangedSignal("AmmoShotgun"):Connect(updateCrosshair)
 local function onCharacter(char: Model)
 	local hum = char:WaitForChild("Humanoid") :: Humanoid
 	hum:GetPropertyChangedSignal("SeatPart"):Connect(updateCrosshair)
@@ -109,3 +140,4 @@ if player.Character then
 	onCharacter(player.Character)
 end
 player.CharacterAdded:Connect(onCharacter)
+updateCrosshair()
