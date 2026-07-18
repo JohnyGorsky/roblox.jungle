@@ -1,9 +1,10 @@
 --!strict
--- ExcursionServer.server.luau — dock → jungle camp raid loop, first slice (Job 011).
+-- ExcursionServer.server.luau — dock → jungle-zone raid loop (Jobs 011 → 012).
 --
--- At each dock, inland, we carve a flat walkable CLEARING and build a greybox CAMP: huts, a guarded
--- loot crate. Loot the crate → carry it (hands full, can't shoot) → deposit at the boat → a resource
--- count goes up. Server-authoritative. Guards target on-foot players (leashed to the camp).
+-- Only LANDING-site docks open a big walkable jungle BASIN carved inland (the steep mountains become
+-- the ring around it). Greybox trees scatter through it; a few CAMPS sit at increasing depth (deeper =
+-- more guards). Tie the boat, go ashore, trek in, loot camps (guarded), carry loot back to the boat.
+-- Server-authoritative. (Trees/camps are greybox — real objects come in the art pass.)
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -15,8 +16,8 @@ local RiverData = require(ReplicatedStorage:WaitForChild("River"):WaitForChild("
 local EnemyDefs = require(ReplicatedStorage:WaitForChild("Enemies"):WaitForChild("EnemyDefs"))
 
 local CAMP_AHEAD = 1400
-local CAMP_INLAND = 55 -- studs past the bank edge to the camp centre
-local CLEARING_SIZE = 110
+local BASIN_SIZE = 400 -- walkable jungle zone size (studs)
+local TREE_COUNT = 45
 local GUARD_LEASH = 55
 
 if not Workspace:GetAttribute("RiverReady") then
@@ -25,7 +26,7 @@ end
 local boat = Workspace:WaitForChild("Boat")
 local hull = boat:WaitForChild("Hull") :: BasePart
 local Terrain = Workspace.Terrain
-local CLEAR_Y = RiverData.WATER_Y + 3 -- walkable clearing ground height
+local CLEAR_Y = RiverData.WATER_Y + 3 -- basin floor / walkable ground height
 
 local campsRoot = Instance.new("Folder")
 campsRoot.Name = "Camps"
@@ -48,13 +49,13 @@ local function block(name: string, size: Vector3, color: Color3, cf: CFrame, par
 	return p
 end
 
--- flatten a walkable grass clearing (fill solid below CLEAR_Y, clear hills above)
-local function carveClearing(cx: number, cz: number)
-	Terrain:FillBlock(CFrame.new(cx, CLEAR_Y - 20, cz), Vector3.new(CLEARING_SIZE, 40, CLEARING_SIZE), Enum.Material.Grass)
-	Terrain:FillBlock(CFrame.new(cx, CLEAR_Y + 22, cz), Vector3.new(CLEARING_SIZE, 44, CLEARING_SIZE), Enum.Material.Air)
+-- flatten a walkable grass patch (fill solid below CLEAR_Y, clear terrain above — incl. tall mountains)
+local function carve(cx: number, cz: number, size: number)
+	Terrain:FillBlock(CFrame.new(cx, CLEAR_Y - 20, cz), Vector3.new(size, 40, size), Enum.Material.Grass)
+	Terrain:FillBlock(CFrame.new(cx, CLEAR_Y + 32, cz), Vector3.new(size, 64, size), Enum.Material.Air)
 end
 
--- deposit carried loot at the boat → a resource count. ONLY shown while someone is actually carrying.
+-- deposit carried loot at the boat → a resource count. ONLY shown while someone is carrying.
 local deposit = Instance.new("ProximityPrompt")
 deposit.Name = "DepositPrompt"
 deposit.ActionText = "Deposit"
@@ -62,7 +63,7 @@ deposit.ObjectText = "Cargo"
 deposit.HoldDuration = 0.5
 deposit.RequiresLineOfSight = false
 deposit.MaxActivationDistance = 16
-deposit.Enabled = false -- hidden until you pick up loot
+deposit.Enabled = false
 deposit.Parent = hull
 deposit.Triggered:Connect(function(player: Player)
 	local carried = carrying[player]
@@ -78,7 +79,7 @@ deposit.Triggered:Connect(function(player: Player)
 	if char then
 		char:SetAttribute("Carrying", nil)
 	end
-	deposit.Enabled = next(carrying) ~= nil -- hide again once nobody's carrying
+	deposit.Enabled = next(carrying) ~= nil
 end)
 
 local function pickupLoot(player: Player, crate: Part)
@@ -104,41 +105,28 @@ local function pickupLoot(player: Player, crate: Part)
 	carried.Parent = char
 	carrying[player] = carried
 	char:SetAttribute("Carrying", resource)
-	player:SetAttribute("Busy", true) -- hands full → can't shoot (weapon already respects Busy)
-	deposit.Enabled = true -- now show the boat's Deposit prompt
+	player:SetAttribute("Busy", true) -- hands full → can't shoot
+	deposit.Enabled = true
 	crate:Destroy()
 end
 
-local function spawnGuard(campPos: Vector3, parent: Instance): Model
+local function spawnGuard(anchorPos: Vector3, parent: Instance)
 	local def = EnemyDefs.Defs.Panther
 	local guard = Instance.new("Model")
 	guard.Name = "CampGuard"
-	local anchorPos = campPos + Vector3.new(0, 0, 8)
 	local body = block("Body", def.size, def.color, CFrame.new(anchorPos + Vector3.new(0, def.size.Y / 2, 0)), guard)
 	guard.PrimaryPart = body
 	guard:SetAttribute("HP", def.hp)
 	guard:SetAttribute("MaxHP", def.hp)
-	CollectionService:AddTag(guard, "CampGuard") -- ExcursionServer ticks it; WeaponServer can shoot it
+	CollectionService:AddTag(guard, "CampGuard")
 	guard.Parent = parent
 	guardState[guard] = { biteTimer = def.biteCooldown, anchor = Vector3.new(anchorPos.X, CLEAR_Y + def.size.Y / 2, anchorPos.Z) }
-	return guard
 end
 
-local function buildCamp(dock: RiverData.Dock, index: number)
-	if built[index] then
-		return
-	end
-	built[index] = true
-	local campX = RiverData.centerlineX(dock.z) + dock.side * (RiverData.widthAt(dock.z) * 0.5 + CAMP_INLAND)
-	local campPos = Vector3.new(campX, CLEAR_Y, dock.z)
-	carveClearing(campX, dock.z)
-
-	local model = Instance.new("Model")
-	model.Name = "Camp"
-	block("Hut", Vector3.new(10, 8, 10), Color3.fromRGB(92, 70, 45), CFrame.new(campPos + Vector3.new(-12, 4, 10)), model)
-	block("Hut", Vector3.new(8, 6, 8), Color3.fromRGB(104, 82, 55), CFrame.new(campPos + Vector3.new(13, 3, 4)), model)
-
-	local crate = block("LootCrate", Vector3.new(4, 4, 4), Color3.fromRGB(150, 120, 70), CFrame.new(campPos + Vector3.new(0, 2, -8)), model, Enum.Material.WoodPlanks)
+local function buildCampAt(campPos: Vector3, parent: Instance, guards: number)
+	block("Hut", Vector3.new(10, 8, 10), Color3.fromRGB(92, 70, 45), CFrame.new(campPos + Vector3.new(-12, 4, 10)), parent)
+	block("Hut", Vector3.new(8, 6, 8), Color3.fromRGB(104, 82, 55), CFrame.new(campPos + Vector3.new(13, 3, 4)), parent)
+	local crate = block("LootCrate", Vector3.new(4, 4, 4), Color3.fromRGB(150, 120, 70), CFrame.new(campPos + Vector3.new(0, 2, -8)), parent, Enum.Material.WoodPlanks)
 	crate:SetAttribute("Resource", "Metal")
 	local loot = Instance.new("ProximityPrompt")
 	loot.Name = "LootPrompt"
@@ -151,8 +139,40 @@ local function buildCamp(dock: RiverData.Dock, index: number)
 	loot.Triggered:Connect(function(player: Player)
 		pickupLoot(player, crate)
 	end)
+	for i = 1, guards do
+		spawnGuard(campPos + Vector3.new((i - 1) * 7, 0, 8), parent)
+	end
+end
 
-	spawnGuard(campPos, model)
+local function tree(x: number, z: number, parent: Instance, rng: Random)
+	local h = rng:NextNumber(11, 18)
+	block("Trunk", Vector3.new(2, h, 2), Color3.fromRGB(90, 60, 40), CFrame.new(x, CLEAR_Y + h / 2, z), parent, Enum.Material.Wood)
+	block("Canopy", Vector3.new(11, 8, 11), Color3.fromRGB(45, 100, 50), CFrame.new(x, CLEAR_Y + h + 2, z), parent)
+end
+
+local function buildLandingSite(dock: RiverData.Dock, index: number)
+	if built[index] then
+		return
+	end
+	built[index] = true
+	local halfW = RiverData.widthAt(dock.z) * 0.5
+	local waterEdge = RiverData.centerlineX(dock.z) + dock.side * halfW
+	local basinCenterX = waterEdge + dock.side * (BASIN_SIZE / 2 - 20)
+	carve(basinCenterX, dock.z, BASIN_SIZE)
+
+	local model = Instance.new("Model")
+	model.Name = "LandingSite"
+	local rng = Random.new(index * 131 + 7)
+	for _ = 1, TREE_COUNT do
+		local rx = basinCenterX + rng:NextNumber(-1, 1) * (BASIN_SIZE / 2 - 15)
+		local rz = dock.z + rng:NextNumber(-1, 1) * (BASIN_SIZE / 2 - 15)
+		if (rx - waterEdge) * dock.side > 10 then -- keep trees on land, out of the channel
+			tree(rx, rz, model, rng)
+		end
+	end
+	-- tiered camps: near (1 guard) + far/deeper (2 guards, better spot to push for)
+	buildCampAt(Vector3.new(waterEdge + dock.side * 120, CLEAR_Y, dock.z), model, 1)
+	buildCampAt(Vector3.new(waterEdge + dock.side * 300, CLEAR_Y, dock.z + 40), model, 2)
 	model.Parent = campsRoot
 end
 
@@ -226,7 +246,9 @@ end
 while true do
 	local boatZ = hull.Position.Z
 	for _, dock in RiverData.docksBetween(boatZ - 200, boatZ + CAMP_AHEAD) do
-		buildCamp(dock, dockIndex(dock.z))
+		if dock.landing then
+			buildLandingSite(dock, dockIndex(dock.z))
+		end
 	end
 	task.wait(0.5)
 end

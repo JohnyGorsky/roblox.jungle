@@ -19,7 +19,7 @@ RiverData.HOOK_SPACING = 220      -- avg studs between obstacle/ramp placement h
 RiverData.DOCK_SPACING = 2200     -- studs between refuel docks
 
 export type Hook = { z: number, x: number, kind: string } -- kind = "obstacle" | "ramp"
-export type Dock = { z: number, x: number, side: number }
+export type Dock = { z: number, x: number, side: number, landing: boolean } -- landing = opens a big jungle zone
 
 -- meander: centerlineX(z) = A1·noise(z·F1) + A2·noise(z·F2). Big slow bends + smaller wiggles.
 -- (noise ≈ ±0.5, so ×2 to use its full range; amplitudes are ~studs of side-to-side.)
@@ -128,7 +128,9 @@ function RiverData.docksBetween(z0: number, z1: number): { Dock }
 		if RiverData.ENDLESS or z <= endZ then
 			local side = if math.noise(z * 0.013 + offW, 7.7) >= 0 then 1 else -1
 			local x = RiverData.centerlineX(z) + side * (RiverData.widthAt(z) * 0.5 - 4) -- at the water's edge
-			docks[#docks + 1] = { z = z, x = x, side = side }
+			-- only SOME docks are landing sites (open a big jungle zone); others are quick refuel/tie stops
+			local landing = (i % 2) == 1
+			docks[#docks + 1] = { z = z, x = x, side = side, landing = landing }
 		end
 	end
 	return docks
