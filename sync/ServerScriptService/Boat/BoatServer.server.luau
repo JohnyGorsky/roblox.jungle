@@ -23,16 +23,17 @@
 --   exploit-resistant for co-op (decided in Job 003 review, 2026-07-18).
 -- Greybox only — real boat model/art swap in at P9. Tune the CONSTANTS for feel.
 --
--- NOTE: WATER_Y + CENTERLINE were measured from the actual river sculpt via voxel read-back
--- (Job 003 review, 2026-07-18). If the terrain is re-generated, re-measure and update these. When
--- the river becomes shared data (P5) both the terrain and this will read from it.
+-- NOTE (Job 005): the river shape now comes from the shared RiverData module — the SAME source the
+-- RiverGenerator uses to build the terrain — so the boat's spawn/heading/waterline can never desync
+-- from the actual river. Waits for the RiverGenerator to signal "RiverReady" before spawning.
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RiverData = require(ReplicatedStorage:WaitForChild("River"):WaitForChild("RiverData"))
 
 -- ── tunables ─────────────────────────────────────────────────────────────
-local WATER_Y = 12           -- spring target for hull CENTER ≈ true water surface (voxel top ≈ 11.9),
-                             -- so our buoyancy cooperates with terrain-water buoyancy instead of fighting it
+local WATER_Y = RiverData.WATER_Y  -- water surface (spring target for hull CENTER), from the shared river data
 local HULL_SIZE = Vector3.new(14, 3, 28)
 local DENSITY = 0.7
 -- Speed knobs. Top speed ≈ THRUST/DRAG, idle downstream drift ≈ CURRENT/DRAG. THRUST is the natural
@@ -50,31 +51,14 @@ local LEVEL_RESP = 22        -- orientation responsiveness (5..200) — lower = 
 local MAX_BANK = math.rad(11)  -- max roll INTO a turn at full steer + speed
 local MAX_PITCH = math.rad(7)  -- max bow-up (throttle) / bow-down (brake) trim
 
--- river centerline sampled from the sculpt as {z, x}, upstream → downstream (measured from the
--- water voxels; only points that are actually wet — the very upstream rim at z<-260 is dry grass)
-local CENTERLINE: { { number } } = {
-	{ -260, 38 }, { -240, 37 }, { -220, 40 }, { -200, 41 }, { -180, 45 },
-	{ -160, 50 }, { -140, 54 }, { -120, 60 }, { -100, 65 }, { -80, 70 },
-	{ -60, 72 }, { -40, 75 }, { -20, 75 }, { 0, 75 }, { 20, 71 },
-	{ 40, 62 }, { 60, 48 }, { 80, 31 }, { 100, 14 }, { 120, -3 },
-	{ 140, -16 }, { 160, -23 }, { 180, -24 }, { 200, -20 }, { 220, -11 },
-	{ 240, 1 }, { 260, 11 }, { 280, 20 }, { 300, 11 },
-}
--- spawn a touch downstream of the upstream rim so the hull starts fully over water, just above surface
-local START = Vector3.new(37, WATER_Y + 2, -240)
+-- Spawn point — set AFTER RiverReady (once RiverBootstrap has applied the seed), so it matches the
+-- generated river. Placeholder until then.
+local START = Vector3.zero
 -- ─────────────────────────────────────────────────────────────────────────
 
--- unit downstream tangent of the centerline segment containing z (clamped to the sampled range)
+-- unit downstream tangent from the shared river data (no hardcoded centerline — can't desync)
 local function downstream(z: number): Vector3
-	local a, b = CENTERLINE[1], CENTERLINE[2]
-	for i = 1, #CENTERLINE - 1 do
-		if z <= CENTERLINE[i + 1][1] then
-			a, b = CENTERLINE[i], CENTERLINE[i + 1]
-			break
-		end
-		a, b = CENTERLINE[#CENTERLINE - 1], CENTERLINE[#CENTERLINE]
-	end
-	return Vector3.new(b[2] - a[2], 0, b[1] - a[1]).Unit
+	return RiverData.tangentAtZ(z)
 end
 
 local function buildBoat(): Model
@@ -140,6 +124,13 @@ local function buildBoat(): Model
 	model.Parent = Workspace
 	return model
 end
+
+-- wait for the RiverGenerator to build the initial terrain (and apply the seed) so the boat spawns
+-- onto real water at the correct place
+if not Workspace:GetAttribute("RiverReady") then
+	Workspace:GetAttributeChangedSignal("RiverReady"):Wait()
+end
+START = RiverData.positionAt(RiverData.Z_START + 40) + Vector3.new(0, 2, 0)
 
 local boat = buildBoat()
 local hull = boat.PrimaryPart :: BasePart

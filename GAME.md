@@ -184,6 +184,27 @@ after); whether the hull physically scales in size; per-module art (P9, Meshy)._
 - **Placeholder first:** early phases greybox the terrain + river to test feel; final flora, water
   detailing, and set-pieces come in the art pass (P9).
 
+## Landing sites & land excursions (docks → camps & villages)
+
+_(Added 2026-07-18.)_ Not every stop is just a fuel pump. At **designated landing sites** the river
+**widens / opens onto a coast** where the crew can **disembark onto bigger, walkable terrain** and make
+an **excursion on foot**: trek inland to a **camp or village**, **raid it** for fuel / ammo / loot /
+currency (guarded — a real fight), and **haul it back to the boat**. The boat waits behind, exposed
+(core tension = stopping is dangerous), so someone may stay to defend it.
+
+- **Wider terrain at these sites.** Unlike the travel stretches (a channel with banks), landing sites
+  generate **large open walkable areas** — coastline, clearings, a village footprint — sized for on-foot
+  play, not just a dock plank.
+- **Risk vs reward.** Camps/villages hold the best loot but are defended; raiding is the high-stakes
+  version of scavenging. Extends the existing dock/refuel loop into a real set-piece.
+- **Variety via seeds / biomes.** Different site types along the run — coast, jungle village, ruined
+  temple, hunter camp — each its own generated flavor. The terrain generator grows from **one river
+  mode into multiple seeded modes/biomes** stitched along the route (main river + POI zones).
+
+Ties into: **docks / refuel** (P4), **threats & combat on land** (P3), the **modular boat** (raided loot
+buys upgrades), and **zones** (P5). Terrain support is a **future extension of the Job #005 generator**
+(the main river ships first).
+
 ## Threats, stake & fail/win
 
 - **Both the boat and the players are at stake.** Animals/hazards damage the **boat** (boat HP →

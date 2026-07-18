@@ -84,3 +84,7 @@ Pure math, deterministic from `(seed)`. No terrain writes. Exposes:
 - Terrain lives in Workspace/Terrain (not auto-synced) — **user saves the place** to persist a baked
   reference if desired; the generator rebuilds from seed regardless.
 - Scripts on disk under `sync/` auto-sync; run `bash tools/luau-analyze.sh` after each edit.
+- **Forward-compat (future — GAME.md "Land excursions"):** later we'll add **landing sites** where the
+  river widens onto walkable coast/village terrain (camps to raid). Keep `RiverData`/`RiverGenerator`
+  **mode-aware** (a per-distance "zone/biome" concept) so a wide POI mode can slot in beside the river
+  mode without a rewrite — see `Planned/land-excursions-camps-villages.md`. Not built in #005.
