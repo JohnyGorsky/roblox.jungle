@@ -7,12 +7,19 @@
 --                 rely on terrain-water buoyancy, which let the boat sink/fall through).
 --   • Thrust    — VectorForce = throttle × hull look-vector (world; at CoM).
 --   • Current   — VectorForce pushing downstream along the winding channel.
+--   • Drag      — VectorForce opposing horizontal velocity → a finite top speed + engine feel.
 --   • Steer     — AngularVelocity yaw; linear momentum carries the boat = drift.
--- Input: a VehicleSeat (WASD + default mobile controls; auto network-ownership to the driver).
+--   • Upright   — AlignOrientation (PrimaryAxisOnly) keeps the hull level (anti-capsize) while
+--                 leaving yaw free for the steer, per the roblox-physics boat recipe.
+-- Input: a VehicleSeat (WASD + default mobile controls; ThrottleFloat/SteerFloat replicate to the
+-- server regardless of physics ownership).
+-- Authority: SERVER-OWNED. The VehicleSeat auto-hands ownership to the driver on sit; we re-assert
+--   SetNetworkOwner(nil) so this server loop reads accurate (un-lagged) Position/velocity and stays
+--   exploit-resistant for co-op (decided in Job 003 review, 2026-07-18).
 -- Greybox only — real boat model/art swap in at P9. Tune the CONSTANTS for feel.
 --
--- NOTE: CENTERLINE + WATER_Y must match the river sculpt (Job 003). When the river becomes
--- shared data (P5) both the terrain and this will read from it.
+-- NOTE: WATER_Y + centerline (AMP/FREQ) must match the river sculpt (Job 003). When the river
+-- becomes shared data (P5) both the terrain and this will read from it.
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -26,8 +33,11 @@ local THRUST = 120000        -- forward force at full throttle
 local REVERSE = 60000
 local TURN = 1.6             -- yaw rad/s at full steer
 local CURRENT = 22000        -- downstream push (0 to disable)
+local DRAG = 2200            -- horizontal velocity damping → top speed ≈ THRUST/DRAG
 local FLOAT_K = 8            -- buoyancy spring stiffness
 local FLOAT_D = 3            -- buoyancy damping
+local LEVEL_TORQUE = 4e6     -- upright (anti-capsize) torque cap
+local LEVEL_RESP = 25        -- upright responsiveness (5..200)
 
 local AMP = 110              -- river centerline: x = AMP * sin(z * FREQ)
 local FREQ = (2 * math.pi) / 320
@@ -55,9 +65,16 @@ local function buildBoat(): Model
 	hull.Parent = model
 	model.PrimaryPart = hull
 
+	-- force/velocity anchor at the hull center of mass
 	local att = Instance.new("Attachment")
 	att.Name = "Root"
 	att.Parent = hull
+
+	-- primary axis points along hull-up so AlignOrientation(PrimaryAxisOnly) can hold it level
+	local upAtt = Instance.new("Attachment")
+	upAtt.Name = "UpAxis"
+	upAtt.CFrame = CFrame.Angles(0, 0, math.pi / 2) -- rotate local +X onto hull +Y (up)
+	upAtt.Parent = hull
 
 	local seat = Instance.new("VehicleSeat")
 	seat.Name = "DriverSeat"
@@ -83,6 +100,7 @@ local function buildBoat(): Model
 	force("Buoy")
 	force("Thrust")
 	force("Current")
+	force("Drag")
 
 	local steer = Instance.new("AngularVelocity")
 	steer.Name = "Steer"
@@ -91,6 +109,18 @@ local function buildBoat(): Model
 	steer.MaxTorque = 1e7
 	steer.AngularVelocity = Vector3.zero
 	steer.Parent = hull
+
+	-- keep the hull upright (roll/pitch) without touching yaw → no fight with the steer
+	local level = Instance.new("AlignOrientation")
+	level.Name = "Level"
+	level.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	level.Attachment0 = upAtt
+	level.PrimaryAxisOnly = true
+	level.RigidityEnabled = false
+	level.MaxTorque = LEVEL_TORQUE
+	level.Responsiveness = LEVEL_RESP
+	level.CFrame = CFrame.Angles(0, 0, math.pi / 2) -- target primary axis = world up
+	level.Parent = hull
 
 	model.Parent = Workspace
 	return model
@@ -102,16 +132,37 @@ local seat = boat:FindFirstChild("DriverSeat") :: VehicleSeat
 local buoy = hull:FindFirstChild("Buoy") :: VectorForce
 local thrust = hull:FindFirstChild("Thrust") :: VectorForce
 local current = hull:FindFirstChild("Current") :: VectorForce
+local drag = hull:FindFirstChild("Drag") :: VectorForce
 local steer = hull:FindFirstChild("Steer") :: AngularVelocity
+
+-- SERVER-OWNED physics. VehicleSeat hands ownership to the driver on sit; re-assert server ownership
+-- so this loop reads accurate state and stays authoritative.
+local function claimServerOwnership()
+	if hull:IsGrounded() then return end
+	local ok = pcall(function()
+		hull:SetNetworkOwner(nil)
+	end)
+	if not ok then
+		-- assembly not simulated yet this frame; retry next step
+		task.defer(function()
+			pcall(function()
+				hull:SetNetworkOwner(nil)
+			end)
+		end)
+	end
+end
+claimServerOwnership()
+seat:GetPropertyChangedSignal("Occupant"):Connect(claimServerOwnership)
 
 RunService.Heartbeat:Connect(function()
 	local pos = hull.Position
+	local vel = hull.AssemblyLinearVelocity
 	local mass = hull.AssemblyMass
 	local g = Workspace.Gravity
 
 	-- buoyancy: hold the hull at the water line with a spring-damper (only near/below surface)
 	if pos.Y < WATER_Y + 5 then
-		local spring = mass * ((WATER_Y - pos.Y) * FLOAT_K - hull.AssemblyLinearVelocity.Y * FLOAT_D)
+		local spring = mass * ((WATER_Y - pos.Y) * FLOAT_K - vel.Y * FLOAT_D)
 		buoy.Force = Vector3.new(0, math.max(mass * g + spring, 0), 0)
 	else
 		buoy.Force = Vector3.zero
@@ -122,7 +173,8 @@ RunService.Heartbeat:Connect(function()
 	local s = seat.Steer    -- 1 (D) / -1 (A) / 0
 	thrust.Force = hull.CFrame.LookVector * (t * ((t >= 0) and THRUST or REVERSE))
 	current.Force = downstream(pos.Z) * CURRENT
+	drag.Force = Vector3.new(-vel.X * DRAG, 0, -vel.Z * DRAG) -- horizontal only; Y left to buoyancy
 	steer.AngularVelocity = Vector3.new(0, -s * TURN, 0)
 end)
 
-print(("[Boat] built at %s (water y=%d)"):format(tostring(START), WATER_Y))
+print(("[Boat] built at %s (water y=%d, server-owned)"):format(tostring(START), WATER_Y))
