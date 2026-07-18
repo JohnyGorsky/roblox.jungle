@@ -33,7 +33,9 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local function aimPointFrom(screenPos: Vector2): Vector3
 	local cam = Workspace.CurrentCamera
-	local ray = cam:ViewportPointToRay(screenPos.X, screenPos.Y)
+	-- ScreenPointToRay (NOT ViewportPointToRay): input.Position is in SCREEN space (includes the topbar
+	-- inset), so ScreenPointToRay lines the ray up with the cursor; ViewportPointToRay is off by the inset.
+	local ray = cam:ScreenPointToRay(screenPos.X, screenPos.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character :: Instance }

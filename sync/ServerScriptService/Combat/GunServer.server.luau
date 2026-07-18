@@ -157,8 +157,15 @@ fireRemote.OnServerEvent:Connect(function(player: Player)
 	if result then
 		local enemy = enemyFrom(result.Instance)
 		if enemy then
-			enemy:SetAttribute("HP", math.max(0, ((enemy:GetAttribute("HP") :: number?) or 0) - GUN_DAMAGE))
+			local before = (enemy:GetAttribute("HP") :: number?) or 0
+			local after = math.max(0, before - GUN_DAMAGE)
+			enemy:SetAttribute("HP", after)
+			print(string.format("[Gun] HIT %s  HP %d -> %d%s", enemy.Name, before, after, if after <= 0 then "  (KILLED)" else ""))
+		else
+			print(string.format("[Gun] hit %s (%s) — not an enemy", result.Instance:GetFullName(), result.Material.Name))
 		end
+	else
+		print("[Gun] missed (nothing within range)")
 	end
 end)
 
