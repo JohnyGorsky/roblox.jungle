@@ -108,8 +108,8 @@ local function buildDock(dock: RiverData.Dock, index: number)
 			local a0 = Instance.new("Attachment")
 			a0.Parent = hull
 			local a1 = Instance.new("Attachment")
+			a1.Parent = deck -- parent FIRST, then set world position (else the deck transform double-applies)
 			a1.WorldPosition = pos + Vector3.new(0, 2, 0)
-			a1.Parent = deck
 			ropeAtts = { a0, a1 }
 			local newRope = Instance.new("RopeConstraint")
 			newRope.Attachment0 = a0
