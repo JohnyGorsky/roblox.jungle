@@ -45,7 +45,7 @@ local TURN_FULL_SPEED = 22   -- forward speed (studs/s) for full rudder authorit
 local CURRENT = 12000        -- downstream push (0 to disable) → idle drift ≈ 6 studs/s
 local DRAG = 2000            -- horizontal velocity damping → top speed ≈ THRUST/DRAG
 local FLOAT_K = 8            -- buoyancy spring stiffness
-local FLOAT_D = 3            -- buoyancy damping
+local FLOAT_D = 8            -- buoyancy damping (raised from 3 → kills the moving-boat bob/limit-cycle)
 local LEVEL_TORQUE = 4e6     -- orientation torque cap (also the anti-capsize authority)
 local LEVEL_RESP = 22        -- orientation responsiveness (5..200) — lower = softer sway
 local MAX_BANK = math.rad(11)  -- max roll INTO a turn at full steer + speed
@@ -189,10 +189,15 @@ RunService.Heartbeat:Connect(function(dt: number)
 	local mass = hull.AssemblyMass
 	local g = Workspace.Gravity
 
-	-- buoyancy: hold the hull at the water line with a spring-damper (only near/below surface)
-	if pos.Y < WATER_Y + 5 then
-		local spring = mass * ((WATER_Y - pos.Y) * FLOAT_K - vel.Y * FLOAT_D)
-		buoy.Force = Vector3.new(0, math.max(mass * g + spring, 0), 0)
+	-- buoyancy: damped spring holding the hull at the water line. The spring (up-only, water can't pull
+	-- down) and the DAMPING are separate: damping is applied on its own so it ALWAYS removes vertical
+	-- energy. The old version folded damping into a max(...,0) clamp and cut the whole force off at
+	-- WATER_Y+5 — right at the bob's peak — so a moving boat limit-cycled (~3-stud never-ending bounce).
+	-- Cutoff raised well above the normal bob so damping keeps acting; equilibrium is the water line.
+	if pos.Y < WATER_Y + 12 then
+		local spring = math.max(mass * (g + (WATER_Y - pos.Y) * FLOAT_K), 0)
+		local damp = -vel.Y * FLOAT_D * mass
+		buoy.Force = Vector3.new(0, spring + damp, 0)
 	else
 		buoy.Force = Vector3.zero
 	end
