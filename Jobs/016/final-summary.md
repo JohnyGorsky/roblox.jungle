@@ -70,9 +70,29 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
 - **New:** `sync/ServerScriptService/Staging/StagingServer.server.luau`,
   `sync/StarterPlayer/StarterPlayerScripts/UI/StagingHint.local.luau`.
 - **Edited:** `sync/ServerScriptService/Combat/PlayerCombat.server.luau` (spawn branch),
-  `sync/ServerScriptService/Enemies/EnemyServer.server.luau` (RunStarted gate ×2).
-- **Untouched:** BoatServer, DockServer, CargoServer, GunServer, ExcursionServer, RiverBootstrap.
+  `sync/ServerScriptService/Enemies/EnemyServer.server.luau` (RunStarted gate ×2),
+  `sync/ServerScriptService/Boat/BoatServer.server.luau` (buoyancy + network-ownership fixes — see below).
+- **Untouched:** DockServer, CargoServer, GunServer, ExcursionServer, RiverBootstrap.
 - New: `Jobs/016/*`.
+
+## Boat physics fixes (surfaced during playtest — root-caused with logging, not guessed)
+
+Reaching the boat via staging exposed two pre-existing boat-physics bugs the user hit hard ("boat
+disappears", "bounces higher and higher"). Both fixed and written into the roblox-physics skill:
+
+1. **Disappear on untie** → *never anchor to moor* (StagingServer): anchoring the dynamic boat then
+   un-anchoring it with a client-owned player aboard exploded the assembly in one physics step and the
+   engine deleted it (`hull.Parent → nil`, no `Destroying`). Replaced with a constraint-hold.
+2. **Bounces higher & higher while DRIVEN** → **`BoatServer`**:
+   - The `VehicleSeat` handed the boat's **network ownership to the driver's client** on sit, but buoyancy
+     is computed **server-side** → the server's spring reacted to *lagged replicated* position → a
+     delayed-feedback loop that pumped the bob to Y 8→33 (buoy accel ±800). **Confirmed via logging the
+     `GetNetworkOwner()` in the force loop** (`owner=johnygorsky10` while driving). Fix: re-grab
+     `SetNetworkOwner(nil)` whenever a client holds the boat, so it stays server-owned while driven (inputs
+     still replicate via the seat). Confirmed by the user: stable while driving.
+   - Buoyancy retune (secondary): damping applied **separately** from the up-only spring clamp (was folded
+     into `math.max(…,0)` and lost on the rise), cutoff raised `WATER_Y+5 → +12` (was switching buoyancy
+     off at the bob's peak → limit cycle), `FLOAT_D 3 → 8`. Idle/drift bob: ~3 studs → 0.
 
 ## Notes / follow-ups
 
