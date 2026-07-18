@@ -20,8 +20,10 @@ A real loadout on top of a new **4-slot inventory** (one item active at a time),
     the right hand, re-applied on respawn.
   - `InventoryServer` — seeds players, handles the `InventoryCmd` remote (equip/drop).
 - **Sword (default fallback)** — `MeleeServer` + `MeleeClient`. Tap-to-swing when the sword is active;
-  server validates (holding sword, not busy/downed, cooldown 0.6s) and hits the **nearest enemy in front
-  within 9 studs** (same `Enemy`/`CampGuard` tag + `HP`-attribute convention as the guns), 15 damage.
+  server validates (holding sword, not busy/downed, **not seated in the DriverSeat/GunSeat**, cooldown
+  0.6s) and hits the **nearest enemy in front within 9 studs** (same `Enemy`/`CampGuard` tag +
+  `HP`-attribute convention as the guns), 15 damage. Client plays a greybox neon **swing-arc FX** for
+  feedback (a rigged animation is a P9 item).
 - **Pistol = the looted #006 handheld** — `WeaponServer`/`WeaponClient` now fire **only when a gun is the
   active slot item**, drawing from **per-player ammo** (not the boat pool). Crosshair shows only with a gun
   equipped; a red flash cues empty.
@@ -50,6 +52,11 @@ A real loadout on top of a new **4-slot inventory** (one item active at a time),
 - [x] **Driver gate** — a seated driver can't fire the handheld.
 - [x] **Sword-active gate** — firing the gun remote while holding the sword is rejected (ammo unchanged).
 - [x] **Shotgun grant** → slot 3, `AmmoShotgun` 8.
+- [x] **Seat gate (post-fix)** — with the player really seated in the DriverSeat, 3 client sword swings
+      produced **no hits** (rejected). Same condition covers the GunSeat; the mounted gun (untouched) is
+      unaffected. Sword still hits normally when on foot.
+- [x] **Dev convenience** — `DEV_STARTER_GUNS` grants Pistol + Shotgun on spawn (verified: Sword/Pistol/
+      Shotgun in slots). **Turn off** to restore loot-only progression.
 - [~] **Camp weapon/ammo crates** — built by construction (exact working `LootCrate` pattern + verified
       `grant`/`addAmmo`), but the in-world spawn needs a **driving playtest** to a landing dock (camps only
       build as the boat approaches). Same limitation as #014's seated flow.
