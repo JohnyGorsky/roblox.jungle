@@ -223,7 +223,7 @@ end
 -- SEA spawner: crocs in the channel ahead
 task.spawn(function()
 	while true do
-		if boatAlive() and countByName("Crocodile") < MAX_SEA then
+		if Workspace:GetAttribute("RunStarted") and boatAlive() and countByName("Crocodile") < MAX_SEA then
 			local z = hull.Position.Z + rng:NextNumber(SEA_AHEAD_MIN, SEA_AHEAD_MAX)
 			local x = RiverData.centerlineX(z) + rng:NextNumber(-1, 1) * RiverData.widthAt(z) * 0.35
 			local croc = spawnEnemy(EnemyDefs.Defs.Crocodile, Vector3.new(x, WATER_Y, z), nil)
@@ -239,7 +239,7 @@ end)
 -- LAND spawner: panthers on the bank ahead (anchored to that bank point)
 task.spawn(function()
 	while true do
-		if boatAlive() and countByName("Panther") < MAX_LAND then
+		if Workspace:GetAttribute("RunStarted") and boatAlive() and countByName("Panther") < MAX_LAND then
 			local z = hull.Position.Z + rng:NextNumber(LAND_AHEAD_MIN, LAND_AHEAD_MAX)
 			local side = if rng:NextNumber(-1, 1) >= 0 then 1 else -1
 			local edge = RiverData.centerlineX(z) + side * (RiverData.widthAt(z) * 0.5 + 8)

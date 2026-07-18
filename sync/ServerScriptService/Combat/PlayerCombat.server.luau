@@ -21,9 +21,24 @@ local function setupCharacter(player: Player, char: Model)
 	local root = char:WaitForChild("HumanoidRootPart") :: BasePart
 	local walk, jump = hum.WalkSpeed, hum.JumpHeight
 
-	-- spawn/respawn the crew ON the boat — the world is a regenerated river, so the default spawn
-	-- point is over the void. (A live Humanoid then floats in water / stands on land on its own.)
+	-- spawn placement — the world is a regenerated river, so the default spawn point is over the void.
+	-- Before the run starts (staging): spawn at the crash-site HUB. After it starts: ON the boat (so
+	-- mid-run respawns land back on the boat). See StagingServer (Job 016).
 	task.spawn(function()
+		if not Workspace:GetAttribute("RunStarted") then
+			-- wait briefly for StagingServer to publish the hub spawn point
+			local t0 = os.clock()
+			while Workspace:GetAttribute("HubSpawn") == nil
+				and not Workspace:GetAttribute("RunStarted")
+				and os.clock() - t0 < 10 do
+				task.wait(0.1)
+			end
+			local hub = Workspace:GetAttribute("HubSpawn")
+			if hub and not Workspace:GetAttribute("RunStarted") and root.Parent then
+				root.CFrame = CFrame.new(hub :: Vector3)
+				return
+			end
+		end
 		local boatModel = Workspace:WaitForChild("Boat", 15)
 		local h = boatModel and boatModel:FindFirstChild("Hull")
 		if h and h:IsA("BasePart") and root.Parent then
