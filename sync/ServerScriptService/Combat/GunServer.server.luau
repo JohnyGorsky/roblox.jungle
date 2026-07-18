@@ -17,6 +17,8 @@ local GUN_DAMAGE = 60 -- much stronger than the handheld (20)
 local GUN_RANGE = 350
 local FIRE_INTERVAL = 0.3
 local ROUNDS_PER_AMMO = 12
+-- gunner-camera offset (MUST match GunClient) so the shot goes exactly where the crosshair points
+local CAM_UP, CAM_BACK = 2, 3
 
 if not Workspace:GetAttribute("RiverReady") then
 	Workspace:GetAttributeChangedSignal("RiverReady"):Wait()
@@ -142,10 +144,14 @@ fireRemote.OnServerEvent:Connect(function(player: Player)
 	boat:SetAttribute("Rounds", rounds - 1)
 
 	local cf = aimCFrame()
-	local origin = base.Position
+	local origin = (cf * CFrame.new(0, CAM_UP, CAM_BACK)).Position -- match the gunner camera → shot hits the crosshair
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { boat }
+	local filter: { Instance } = { boat }
+	if player.Character then
+		table.insert(filter, player.Character)
+	end
+	params.FilterDescendantsInstances = filter
 	params.IgnoreWater = true
 	local result = Workspace:Raycast(origin, cf.LookVector * GUN_RANGE, params)
 	if result then

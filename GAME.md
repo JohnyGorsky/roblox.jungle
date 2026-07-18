@@ -115,11 +115,22 @@ and turns "reach the next dock before nightfall" into constant fuel/time pressur
 
 ## Player roles (swappable stations)
 
-Players move freely between **stations** on the boat during the run (flexible for 1–4 players):
-- **Driver** — steers and controls speed; avoids hazards; docks the boat. **Can't shoot while driving.**
-- **Gunner** — mans a **mounted gun** (see Weapons); ammo-limited.
-- **Catcher / scavenger** — grabs floating/nearby items; manages supplies.
-- **4th station** _(OPEN — e.g. repair/mechanic to fix boat damage, or a second gunner)_.
+Players move freely between **stations** on the boat during the run. Manning a station **as your role
+gives an efficiency bonus** — a reason to divide the crew, not just everyone doing everything
+_(role model refined 2026-07-18)_:
+
+- **Driver** _(one)_ — steers + controls speed; avoids hazards; docks. **Can't shoot while driving.**
+- **Gunner** _(one)_ — mans the **mounted gun** (see Weapons); strong, ammo-limited.
+- **Repair** _(one)_ — mends the hull at the **repair station**; a dedicated repairer **repairs faster**.
+- **Refuel / engineer** _(one)_ — feeds the **fuel station**; a dedicated refueller **refuels faster AND
+  the boat burns less fuel** while they man it.
+- **Helpers / fighters** _(the rest)_ — defend the deck (gun/sword), fight boarding threats, scavenge,
+  haul loot, revive the downed. The versatile bulk of the crew.
+
+**Design principle:** the four specialist seats (drive / gun / repair / refuel) each grant a **bonus at
+their station**; everyone else is a flexible fighter. Roles are **swappable mid-run** (swap who drives /
+guns / repairs as the situation shifts). Target ~4–6 core crew (see below). _(Bonuses are a P2/role-pass
+implementation; the stations themselves already exist.)_
 
 ## Weapons & combat _(added 2026-07-18)_
 

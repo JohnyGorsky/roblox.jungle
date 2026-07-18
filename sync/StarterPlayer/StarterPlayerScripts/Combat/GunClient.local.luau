@@ -17,6 +17,7 @@ local YAW_LIMIT = math.rad(80)
 local PITCH_MIN, PITCH_MAX = math.rad(-12), math.rad(35)
 local SENS = 0.006
 local BIND = "GunCam"
+local CAM_UP, CAM_BACK = 2, 3 -- MUST match GunServer so the shot hits the crosshair
 
 local seated = false
 local yaw, pitch = 0, 0
@@ -46,15 +47,29 @@ local function gunBase(): BasePart?
 	return if b and b:IsA("BasePart") then b else nil
 end
 
+local function setCharHidden(hidden: boolean)
+	local char = player.Character
+	if not char then
+		return
+	end
+	local t = if hidden then 1 else 0
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then
+			d.LocalTransparencyModifier = t
+		end
+	end
+end
+
 local function update()
 	local base = gunBase()
 	local cam = Workspace.CurrentCamera
 	if not base or not cam then
 		return
 	end
+	cam.CameraType = Enum.CameraType.Scriptable -- re-assert control so nothing steals the camera
+	setCharHidden(true) -- first-person: keep your own head out of the shot (re-applied each frame)
 	local aim = base.CFrame * CFrame.Angles(pitch, yaw, 0)
-	local camPos = aim.Position - aim.LookVector * 7 + aim.UpVector * 3
-	cam.CFrame = CFrame.lookAt(camPos, aim.Position + aim.LookVector * 60)
+	cam.CFrame = aim * CFrame.new(0, CAM_UP, CAM_BACK) -- crosshair (screen centre) == the ray direction
 	cam.Focus = CFrame.new(aim.Position + aim.LookVector * 60)
 end
 
@@ -82,6 +97,7 @@ local function startGunner()
 	gui.Enabled = true
 	Workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+	UserInputService.MouseIconEnabled = false
 	RunService:BindToRenderStep(BIND, Enum.RenderPriority.Camera.Value, update)
 end
 
@@ -95,7 +111,9 @@ local function stopGunner()
 		RunService:UnbindFromRenderStep(BIND)
 	end)
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	UserInputService.MouseIconEnabled = true
 	Workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+	setCharHidden(false)
 end
 
 local function onCharacter(char: Model)
