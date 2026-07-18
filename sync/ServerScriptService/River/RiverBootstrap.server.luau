@@ -28,17 +28,55 @@ RiverData.setSeed(if seed then seed else 2026)
 
 local generated: { [number]: boolean } = {}
 
+-- greybox obstacle/ramp markers (real props come later), streamed with their chunk
+local hooksRoot = Instance.new("Folder")
+hooksRoot.Name = "RiverHooks"
+hooksRoot.Parent = Workspace
+
+local function placeHooks(index: number)
+	if hooksRoot:FindFirstChild("Chunk_" .. index) then
+		return
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "Chunk_" .. index
+	local zMin = RiverData.Z_START + index * CHUNK_LEN
+	for _, h in ipairs(RiverData.hooksBetween(zMin, zMin + CHUNK_LEN - 1)) do
+		local isRamp = h.kind == "ramp"
+		local p = Instance.new("Part")
+		p.Name = "Hook_" .. h.kind
+		p.Anchored = true
+		p.CanCollide = false
+		p.Material = Enum.Material.Neon
+		p.Transparency = 0.4
+		p.Size = if isRamp then Vector3.new(30, 6, 22) else Vector3.new(12, 12, 12)
+		p.Position = Vector3.new(h.x, RiverData.WATER_Y + (if isRamp then 1 else 4), h.z)
+		p.Color = if isRamp then Color3.fromRGB(90, 220, 120) else Color3.fromRGB(225, 80, 70)
+		p:SetAttribute("HookKind", h.kind)
+		p.Parent = folder
+	end
+	folder.Parent = hooksRoot
+end
+
+local function clearHooks(index: number)
+	local folder = hooksRoot:FindFirstChild("Chunk_" .. index)
+	if folder then
+		folder:Destroy()
+	end
+end
+
 local function ensureChunk(index: number)
 	if index < 0 or index > MAX_CHUNK or generated[index] then
 		return
 	end
 	RiverGenerator.generateChunk(index)
+	placeHooks(index)
 	generated[index] = true
 end
 
 local function cullChunk(index: number)
 	if generated[index] then
 		RiverGenerator.clearChunk(index)
+		clearHooks(index)
 		generated[index] = nil
 	end
 end

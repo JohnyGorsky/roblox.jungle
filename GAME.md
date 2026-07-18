@@ -209,8 +209,17 @@ buys upgrades), and **zones** (P5). Terrain support is a **future extension of t
 
 - **Both the boat and the players are at stake.** Animals/hazards damage the **boat** (boat HP →
   destroyed = run over) *and* can **down players** (teammates can **revive** the downed).
-- Threats: **crocodiles** + other predators (river & bank), river hazards (rapids/rocks — _OPEN_), and
-  **night** raising danger.
+- **Two threat domains — sea & land — each with a day/night rhythm** _(added 2026-07-18)_:
+  - **Sea / river threats** (crocodiles, piranha, river predators) — attack the boat + players **on the
+    water**; **peak at NIGHT** (the water turns deadly).
+  - **Land threats** (shore predators, hostile tribes at camps/villages) — the danger of **going
+    ashore**; most active by **DAY**, when you disembark to scavenge/raid.
+  - Threat **strength scales with time of day** (plus distance/zone) — this is what drives the safety
+    flip below. Build the threat system **category- (sea/land) and time-of-day-aware from the start.**
+- **Where players should be, by time of day — the run's rhythm (remember this):**
+  - **DAY → out on the water, travelling.** The river is the safe lane; land excursions are the risk.
+  - **NIGHT → sheltered on land at a dock.** The water is deadly; reach a dock before dark and hold
+    out / fortify until dawn, or gamble a **searchlight** push-through. (See "Day / night cycle".)
 - **Win:** reach the end of the campaign. **Fail:** boat destroyed, whole crew downed, or stranded
   out of fuel. (Exact thresholds TBD.)
 

@@ -144,6 +144,19 @@ local level = hull:FindFirstChild("Level") :: AlignOrientation
 -- integrated desired heading (yaw). Steering changes this; AlignOrientation drives the hull to it.
 local desiredYaw = select(2, hull.CFrame:ToOrientation())
 
+-- boat health + fail state (Job 006). HP lives as an attribute on the Boat model; threats damage it.
+local MAX_HP = 100
+boat:SetAttribute("MaxHP", MAX_HP)
+boat:SetAttribute("HP", MAX_HP)
+local destroyed = false
+boat:GetAttributeChangedSignal("HP"):Connect(function()
+	if not destroyed and ((boat:GetAttribute("HP") :: number?) or MAX_HP) <= 0 then
+		destroyed = true
+		Workspace:SetAttribute("BoatDestroyed", true)
+		print("[Boat] DESTROYED — run over")
+	end
+end)
+
 -- SERVER-OWNED physics. VehicleSeat hands ownership to the driver on sit; re-assert server ownership
 -- so this loop reads accurate state and stays authoritative.
 local function claimServerOwnership()
@@ -175,6 +188,14 @@ RunService.Heartbeat:Connect(function(dt: number)
 		buoy.Force = Vector3.new(0, math.max(mass * g + spring, 0), 0)
 	else
 		buoy.Force = Vector3.zero
+	end
+
+	-- dead in the water once destroyed: kill propulsion + steering, but keep it floating
+	if destroyed then
+		thrust.Force = Vector3.zero
+		current.Force = Vector3.zero
+		drag.Force = Vector3.new(-vel.X * DRAG, 0, -vel.Z * DRAG)
+		return
 	end
 
 	-- drive

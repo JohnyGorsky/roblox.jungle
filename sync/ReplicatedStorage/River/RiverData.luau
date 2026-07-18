@@ -15,6 +15,9 @@ RiverData.WATER_Y = 12            -- target water surface height
 RiverData.Z_START = 0             -- world Z of the river's upstream start
 RiverData.END_DISTANCE = 18000    -- campaign finish distance (studs) ≈ a long ~15–25 min run
 RiverData.ENDLESS = false         -- true = no end (P10 endless mode)
+RiverData.HOOK_SPACING = 220      -- avg studs between obstacle/ramp placement hooks
+
+export type Hook = { z: number, x: number, kind: string } -- kind = "obstacle" | "ramp"
 
 -- meander: centerlineX(z) = A1·noise(z·F1) + A2·noise(z·F2). Big slow bends + smaller wiggles.
 -- (noise ≈ ±0.5, so ×2 to use its full range; amplitudes are ~studs of side-to-side.)
@@ -22,32 +25,53 @@ local A1, F1 = 300, 1 / 1600
 local A2, F2 = 75, 1 / 620
 -- width: WIDE by design (obstacles/ramps live IN the channel). Gentle variation, never tight — any
 -- real pinch-points come later as placed obstacles, not a skinny river.
-local W_BASE, W_VAR, F_W = 190, 45, 1 / 700
-local W_FLOOR, W_CEIL = 140, 240
+local W_BASE, W_VAR, F_W = 209, 50, 1 / 700
+local W_FLOOR, W_CEIL = 154, 264
 -- ───────────────────────────────────────────────────────────────────────────
 
-local seed = 1
-local offX1, offX2, offW = 1.7, 5.3, 9.1 -- noise offsets (avoid integer lattice zeros); re-derived per seed
+-- The seed is stored in a replicated Workspace attribute — NOT mutable module state — so it stays
+-- consistent across server/client and survives a module reload (e.g. Studio live-sync mid-play).
+-- Offsets are cached and re-derived only when the attribute changes.
+local DEFAULT_SEED = 2026
+local Workspace = game:GetService("Workspace")
 
+local cachedSeed: number? = nil
+local offX1, offX2, offW = 0, 0, 0
+
+local function ensureSeed()
+	local s = Workspace:GetAttribute("RiverSeed")
+	if typeof(s) ~= "number" then
+		s = DEFAULT_SEED
+	end
+	if s ~= cachedSeed then
+		cachedSeed = s :: number
+		local r = Random.new(s :: number)
+		offX1 = r:NextNumber(1, 5000)
+		offX2 = r:NextNumber(1, 5000)
+		offW = r:NextNumber(1, 5000)
+	end
+end
+
+-- server-only (clients read the replicated attribute); sets the seed for the whole run
 function RiverData.setSeed(newSeed: number)
-	seed = newSeed
-	local r = Random.new(newSeed)
-	offX1 = r:NextNumber(1, 5000)
-	offX2 = r:NextNumber(1, 5000)
-	offW = r:NextNumber(1, 5000)
+	Workspace:SetAttribute("RiverSeed", newSeed)
+	ensureSeed()
 end
 
 function RiverData.getSeed(): number
-	return seed
+	ensureSeed()
+	return cachedSeed :: number
 end
 
 -- world-space X of the channel center at downstream position z
 function RiverData.centerlineX(z: number): number
+	ensureSeed()
 	return A1 * (math.noise(z * F1 + offX1) * 2) + A2 * (math.noise(z * F2 + offX2) * 2)
 end
 
 -- channel width (bank to bank) at z — wide, with gentle variation; clamped so it never gets tight
 function RiverData.widthAt(z: number): number
+	ensureSeed()
 	local n = math.noise(z * F_W + offW) * 2 -- ~[-1, 1]
 	return math.clamp(W_BASE + W_VAR * n, W_FLOOR, W_CEIL)
 end
@@ -63,6 +87,32 @@ function RiverData.tangentAtZ(z: number): Vector3
 	return Vector3.new(dx * 0.5, 0, 1).Unit
 end
 
+-- Deterministic obstacle/ramp placement hooks with z in [z0, z1] (inclusive). Data only — the actual
+-- rock/log/ramp props are placed on these later. Obstacles sit off-centre (steer around them); ramps
+-- sit near the centre (line up and jump).
+function RiverData.hooksBetween(z0: number, z1: number): { Hook }
+	ensureSeed()
+	local hooks: { Hook } = {}
+	local spacing = RiverData.HOOK_SPACING
+	local endZ = RiverData.Z_START + RiverData.END_DISTANCE
+	local first = math.ceil((z0 - RiverData.Z_START) / spacing)
+	local last = math.floor((z1 - RiverData.Z_START) / spacing)
+	for i = first, last do
+		local z = RiverData.Z_START + i * spacing
+		if z >= RiverData.Z_START and (RiverData.ENDLESS or z <= endZ) then
+			-- favour obstacles (dodge, common) over ramps (jump, special) ~2:1
+			local kind = if math.noise(z * 0.05 + offW, 12.3) > -0.15 then "obstacle" else "ramp"
+			local x = RiverData.centerlineX(z)
+			if kind == "obstacle" then
+				local side = if math.noise(z * 0.07 + offX1, 4.2) >= 0 then 1 else -1
+				x += side * RiverData.widthAt(z) * 0.5 * 0.35 -- ~35% toward one bank; pass on the other side
+			end
+			hooks[#hooks + 1] = { z = z, x = x, kind = kind }
+		end
+	end
+	return hooks
+end
+
 function RiverData.worldToDistance(z: number): number
 	return z - RiverData.Z_START
 end
@@ -76,5 +126,4 @@ function RiverData.isPastEnd(z: number): boolean
 	return not RiverData.ENDLESS and (z - RiverData.Z_START) >= RiverData.END_DISTANCE
 end
 
-RiverData.setSeed(seed)
 return RiverData
