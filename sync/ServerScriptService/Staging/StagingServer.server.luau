@@ -121,8 +121,10 @@ local REEL_OFFSET = 26 -- how far off the pier it starts (studs)
 local dockedPos = Vector3.new(DOCKED_X, WATER_Y + 2, HUB_Z)
 local startPos = Vector3.new(DOCKED_X - HUB_SIDE * REEL_OFFSET, WATER_Y + 2, HUB_Z)
 
--- hold the boat DYNAMICALLY with an AlignPosition (no anchoring). Reeling = moving this target; releasing
--- = destroying it. Heading stays downstream via BoatServer's own AlignOrientation.
+-- Hold the boat DYNAMICALLY (no anchoring) with a LinearVelocity in PLANE mode: it only controls
+-- HORIZONTAL (world X/Z) velocity and NEVER touches Y — so buoyancy alone owns the vertical float and the
+-- boat bobs exactly like normal (an AlignPosition would fight buoyancy on Y → bounce). Reeling = drive the
+-- target X/Z; releasing = destroy this. Heading stays downstream via BoatServer's own AlignOrientation.
 local moorAtt = hull:FindFirstChild("Root") :: Attachment?
 if not moorAtt then
 	local a = Instance.new("Attachment")
@@ -130,31 +132,37 @@ if not moorAtt then
 	a.Parent = hull
 	moorAtt = a
 end
-local moor = Instance.new("AlignPosition")
-moor.Name = "Moor"
-moor.Mode = Enum.PositionAlignmentMode.OneAttachment
-moor.Attachment0 = moorAtt
-moor.ApplyAtCenterOfMass = true
-moor.MaxForce = 500000 -- must beat the boat's constant Current force (~12000) to hold it
-moor.MaxVelocity = 45 -- caps reel-in speed (smooth glide)
-moor.Responsiveness = 25
-moor.RigidityEnabled = false
-moor.Position = startPos
-moor.Parent = hull
+local hold = Instance.new("LinearVelocity")
+hold.Name = "Moor"
+hold.Attachment0 = moorAtt
+hold.RelativeTo = Enum.ActuatorRelativeTo.World
+hold.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+hold.PrimaryTangentAxis = Vector3.new(1, 0, 0) -- world X
+hold.SecondaryTangentAxis = Vector3.new(0, 0, 1) -- world Z  (plane = horizontal; Y is free for buoyancy)
+hold.PlaneVelocity = Vector2.zero -- zero horizontal velocity = hold position (current can't drift it)
+hold.MaxForce = 1000000 -- beat the boat's constant Current force
+hold.Parent = hull
 
--- Hold X/Z only, NOT Y: BoatServer's buoyancy already controls Y, and two things driving the same axis
--- fight → the boat bounces. Each frame we re-aim the target's Y at the hull's CURRENT Y (zero Y error →
--- zero Y force), so the hold corrects horizontal drift while buoyancy owns the vertical float.
+-- drive the boat's horizontal position to (moorX, moorZ): set a planar velocity toward it, ease near it.
+local REEL_SPEED = 16 -- studs/s reel-in
 local moorX, moorZ = startPos.X, startPos.Z
 do
 	local RunService = game:GetService("RunService")
 	local conn: RBXScriptConnection
 	conn = RunService.Heartbeat:Connect(function()
-		if not moor.Parent then
+		if not hold.Parent then
 			conn:Disconnect()
 			return
 		end
-		moor.Position = Vector3.new(moorX, hull.Position.Y, moorZ)
+		local hp = hull.Position
+		local ex, ez = moorX - hp.X, moorZ - hp.Z
+		local d = math.sqrt(ex * ex + ez * ez)
+		if d < 0.3 then
+			hold.PlaneVelocity = Vector2.zero
+		else
+			local s = math.min(REEL_SPEED, d * 3)
+			hold.PlaneVelocity = Vector2.new(ex / d * s, ez / d * s)
+		end
 	end)
 end
 
@@ -239,7 +247,7 @@ local function startRun()
 	Workspace:SetAttribute("RunStarted", true)
 	-- release = destroy the hold constraint. The boat was NEVER anchored (always dynamic + server-owned),
 	-- so there is no anchor→unanchor transition to explode. The current + driver take over cleanly.
-	moor:Destroy()
+	hold:Destroy()
 	boat:SetAttribute("Tied", false)
 	rope:Destroy()
 	a0:Destroy()
