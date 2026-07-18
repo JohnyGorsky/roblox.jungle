@@ -52,31 +52,12 @@ local function buildDock(dock: RiverData.Dock, index: number)
 	deck.Parent = model
 	model.PrimaryPart = deck
 
-	-- two prompt spots at opposite ends of the deck so Refuel & Tie don't fight each other
-	local refuelAtt = Instance.new("Attachment")
-	refuelAtt.Name = "RefuelSpot"
-	refuelAtt.Position = Vector3.new(0, 1.5, 8)
-	refuelAtt.Parent = deck
+	-- tie / untie: hold the boat at the dock (won't drift off), with a visible rope.
+	-- (No refuel here — refuelling happens at the boat's fuel STATION using looted gasoline; see CargoServer.)
 	local tieAtt = Instance.new("Attachment")
 	tieAtt.Name = "TieSpot"
-	tieAtt.Position = Vector3.new(0, 1.5, -8)
+	tieAtt.Position = Vector3.new(0, 1.5, 0)
 	tieAtt.Parent = deck
-
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "RefuelPrompt"
-	prompt.ActionText = "Refuel"
-	prompt.ObjectText = "Fuel Dock"
-	prompt.HoldDuration = 2
-	prompt.RequiresLineOfSight = false
-	prompt.MaxActivationDistance = 18
-	prompt.Parent = refuelAtt
-	prompt.Triggered:Connect(function()
-		if (hull.Position - pos).Magnitude <= REFUEL_RANGE then
-			boat:SetAttribute("Fuel", boat:GetAttribute("MaxFuel"))
-		end
-	end)
-
-	-- tie / untie: hold the boat at the dock (won't drift off), with a visible rope
 	local tie = Instance.new("ProximityPrompt")
 	tie.Name = "TiePrompt"
 	tie.ActionText = "Tie Boat"

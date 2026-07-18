@@ -25,6 +25,7 @@ if not Workspace:GetAttribute("RiverReady") then
 end
 local boat = Workspace:WaitForChild("Boat")
 local hull = boat:WaitForChild("Hull") :: BasePart
+local trailer = Workspace:WaitForChild("Trailer") -- looted cargo goes here (built by CargoServer)
 local Terrain = Workspace.Terrain
 local CLEAR_Y = RiverData.WATER_Y + 3 -- basin floor / walkable ground height
 
@@ -71,7 +72,13 @@ deposit.Triggered:Connect(function(player: Player)
 		return
 	end
 	local resource = (carried:GetAttribute("Resource") :: string?) or "Metal"
-	boat:SetAttribute(resource, ((boat:GetAttribute(resource) :: number?) or 0) + 1)
+	local total = ((trailer:GetAttribute("Gasoline") :: number?) or 0)
+		+ ((trailer:GetAttribute("Metal") :: number?) or 0)
+		+ ((trailer:GetAttribute("Ammo") :: number?) or 0)
+	if total >= ((trailer:GetAttribute("CargoMax") :: number?) or 10) then
+		return -- trailer full → keep carrying it
+	end
+	trailer:SetAttribute(resource, ((trailer:GetAttribute(resource) :: number?) or 0) + 1)
 	carried:Destroy()
 	carrying[player] = nil
 	player:SetAttribute("Busy", false)
@@ -123,22 +130,30 @@ local function spawnGuard(anchorPos: Vector3, parent: Instance)
 	guardState[guard] = { biteTimer = def.biteCooldown, anchor = Vector3.new(anchorPos.X, CLEAR_Y + def.size.Y / 2, anchorPos.Z) }
 end
 
-local function buildCampAt(campPos: Vector3, parent: Instance, guards: number)
+local CRATE_COLOR: { [string]: Color3 } = {
+	Gasoline = Color3.fromRGB(230, 180, 60),
+	Metal = Color3.fromRGB(150, 150, 160),
+	Ammo = Color3.fromRGB(180, 90, 70),
+}
+
+local function buildCampAt(campPos: Vector3, parent: Instance, guards: number, resources: { string })
 	block("Hut", Vector3.new(10, 8, 10), Color3.fromRGB(92, 70, 45), CFrame.new(campPos + Vector3.new(-12, 4, 10)), parent)
 	block("Hut", Vector3.new(8, 6, 8), Color3.fromRGB(104, 82, 55), CFrame.new(campPos + Vector3.new(13, 3, 4)), parent)
-	local crate = block("LootCrate", Vector3.new(4, 4, 4), Color3.fromRGB(150, 120, 70), CFrame.new(campPos + Vector3.new(0, 2, -8)), parent, Enum.Material.WoodPlanks)
-	crate:SetAttribute("Resource", "Metal")
-	local loot = Instance.new("ProximityPrompt")
-	loot.Name = "LootPrompt"
-	loot.ActionText = "Loot"
-	loot.ObjectText = "Crate"
-	loot.HoldDuration = 1.2
-	loot.RequiresLineOfSight = false
-	loot.MaxActivationDistance = 10
-	loot.Parent = crate
-	loot.Triggered:Connect(function(player: Player)
-		pickupLoot(player, crate)
-	end)
+	for i, res in ipairs(resources) do
+		local crate = block("LootCrate", Vector3.new(4, 4, 4), CRATE_COLOR[res] or Color3.fromRGB(150, 120, 70), CFrame.new(campPos + Vector3.new((i - 1) * 6 - 3, 2, -8)), parent, Enum.Material.WoodPlanks)
+		crate:SetAttribute("Resource", res)
+		local loot = Instance.new("ProximityPrompt")
+		loot.Name = "LootPrompt"
+		loot.ActionText = "Loot " .. res
+		loot.ObjectText = "Crate"
+		loot.HoldDuration = 1.2
+		loot.RequiresLineOfSight = false
+		loot.MaxActivationDistance = 10
+		loot.Parent = crate
+		loot.Triggered:Connect(function(player: Player)
+			pickupLoot(player, crate)
+		end)
+	end
 	for i = 1, guards do
 		spawnGuard(campPos + Vector3.new((i - 1) * 7, 0, 8), parent)
 	end
@@ -180,9 +195,9 @@ local function buildLandingSite(dock: RiverData.Dock, index: number)
 			tree(rx, rz, model, rng)
 		end
 	end
-	-- tiered camps: near (1 guard) + far/deeper (2 guards, better spot to push for)
-	buildCampAt(Vector3.new(waterEdge + dock.side * 120, CLEAR_Y, dock.z), model, 1)
-	buildCampAt(Vector3.new(waterEdge + dock.side * 300, CLEAR_Y, dock.z + 40), model, 2)
+	-- tiered camps: near (gasoline, 1 guard) + far/deeper (metal + ammo, 2 guards — better haul)
+	buildCampAt(Vector3.new(waterEdge + dock.side * 120, CLEAR_Y, dock.z), model, 1, { "Gasoline" })
+	buildCampAt(Vector3.new(waterEdge + dock.side * 300, CLEAR_Y, dock.z + 40), model, 2, { "Metal", "Ammo" })
 	model.Parent = campsRoot
 end
 
