@@ -54,6 +54,33 @@ local function carveClearing(cx: number, cz: number)
 	Terrain:FillBlock(CFrame.new(cx, CLEAR_Y + 22, cz), Vector3.new(CLEARING_SIZE, 44, CLEARING_SIZE), Enum.Material.Air)
 end
 
+-- deposit carried loot at the boat → a resource count. ONLY shown while someone is actually carrying.
+local deposit = Instance.new("ProximityPrompt")
+deposit.Name = "DepositPrompt"
+deposit.ActionText = "Deposit"
+deposit.ObjectText = "Cargo"
+deposit.HoldDuration = 0.5
+deposit.RequiresLineOfSight = false
+deposit.MaxActivationDistance = 16
+deposit.Enabled = false -- hidden until you pick up loot
+deposit.Parent = hull
+deposit.Triggered:Connect(function(player: Player)
+	local carried = carrying[player]
+	if not carried then
+		return
+	end
+	local resource = (carried:GetAttribute("Resource") :: string?) or "Metal"
+	boat:SetAttribute(resource, ((boat:GetAttribute(resource) :: number?) or 0) + 1)
+	carried:Destroy()
+	carrying[player] = nil
+	player:SetAttribute("Busy", false)
+	local char = player.Character
+	if char then
+		char:SetAttribute("Carrying", nil)
+	end
+	deposit.Enabled = next(carrying) ~= nil -- hide again once nobody's carrying
+end)
+
 local function pickupLoot(player: Player, crate: Part)
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -78,6 +105,7 @@ local function pickupLoot(player: Player, crate: Part)
 	carrying[player] = carried
 	char:SetAttribute("Carrying", resource)
 	player:SetAttribute("Busy", true) -- hands full → can't shoot (weapon already respects Busy)
+	deposit.Enabled = true -- now show the boat's Deposit prompt
 	crate:Destroy()
 end
 
@@ -127,31 +155,6 @@ local function buildCamp(dock: RiverData.Dock, index: number)
 	spawnGuard(campPos, model)
 	model.Parent = campsRoot
 end
-
--- deposit carried loot at the boat → a resource count on the boat
-local deposit = Instance.new("ProximityPrompt")
-deposit.Name = "DepositPrompt"
-deposit.ActionText = "Deposit"
-deposit.ObjectText = "Cargo"
-deposit.HoldDuration = 0.5
-deposit.RequiresLineOfSight = false
-deposit.MaxActivationDistance = 16
-deposit.Parent = hull
-deposit.Triggered:Connect(function(player: Player)
-	local carried = carrying[player]
-	if not carried then
-		return
-	end
-	local resource = (carried:GetAttribute("Resource") :: string?) or "Metal"
-	boat:SetAttribute(resource, ((boat:GetAttribute(resource) :: number?) or 0) + 1)
-	carried:Destroy()
-	carrying[player] = nil
-	player:SetAttribute("Busy", false)
-	local char = player.Character
-	if char then
-		char:SetAttribute("Carrying", nil)
-	end
-end)
 
 -- guard AI: chase the nearest on-foot player, leashed to the camp; bite = damage player HP
 local function tickGuard(guard: Model, dt: number)

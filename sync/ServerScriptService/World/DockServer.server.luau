@@ -52,15 +52,15 @@ local function buildDock(dock: RiverData.Dock, index: number)
 	deck.Parent = model
 	model.PrimaryPart = deck
 
-	local drum = Instance.new("Part")
-	drum.Name = "FuelDrum"
-	drum.Anchored = true
-	drum.Shape = Enum.PartType.Cylinder
-	drum.Size = Vector3.new(4, 3, 3)
-	drum.Color = Color3.fromRGB(205, 60, 50)
-	drum.Material = Enum.Material.Metal
-	drum.CFrame = deck.CFrame * CFrame.new(0, 2.5, -7) * CFrame.Angles(0, 0, math.rad(90))
-	drum.Parent = model
+	-- two prompt spots at opposite ends of the deck so Refuel & Tie don't fight each other
+	local refuelAtt = Instance.new("Attachment")
+	refuelAtt.Name = "RefuelSpot"
+	refuelAtt.Position = Vector3.new(0, 1.5, 8)
+	refuelAtt.Parent = deck
+	local tieAtt = Instance.new("Attachment")
+	tieAtt.Name = "TieSpot"
+	tieAtt.Position = Vector3.new(0, 1.5, -8)
+	tieAtt.Parent = deck
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "RefuelPrompt"
@@ -68,32 +68,58 @@ local function buildDock(dock: RiverData.Dock, index: number)
 	prompt.ObjectText = "Fuel Dock"
 	prompt.HoldDuration = 2
 	prompt.RequiresLineOfSight = false
-	prompt.MaxActivationDistance = 45
-	prompt.Parent = drum
+	prompt.MaxActivationDistance = 18
+	prompt.Parent = refuelAtt
 	prompt.Triggered:Connect(function()
 		if (hull.Position - pos).Magnitude <= REFUEL_RANGE then
 			boat:SetAttribute("Fuel", boat:GetAttribute("MaxFuel"))
 		end
 	end)
 
-	-- tie / untie: holds the boat at the dock so it won't drift off while the crew is ashore
+	-- tie / untie: hold the boat at the dock (won't drift off), with a visible rope
 	local tie = Instance.new("ProximityPrompt")
 	tie.Name = "TiePrompt"
 	tie.ActionText = "Tie Boat"
 	tie.ObjectText = "Dock"
 	tie.HoldDuration = 0.6
 	tie.RequiresLineOfSight = false
-	tie.MaxActivationDistance = 45
-	tie.Parent = deck
+	tie.MaxActivationDistance = 18
+	tie.Parent = tieAtt
+
+	local rope: RopeConstraint? = nil
+	local ropeAtts: { Attachment } = {}
 	tie.Triggered:Connect(function()
 		if boat:GetAttribute("Tied") then
 			hull.Anchored = false
 			boat:SetAttribute("Tied", false)
 			tie.ActionText = "Tie Boat"
+			if rope then
+				rope:Destroy()
+				rope = nil
+			end
+			for _, a in ropeAtts do
+				a:Destroy()
+			end
+			ropeAtts = {}
 		elseif (hull.Position - pos).Magnitude <= REFUEL_RANGE then
-			hull.Anchored = true -- greybox hold; a soft rope/bob is a refinement
+			hull.Anchored = true -- greybox hold
 			boat:SetAttribute("Tied", true)
 			tie.ActionText = "Untie Boat"
+			local a0 = Instance.new("Attachment")
+			a0.Parent = hull
+			local a1 = Instance.new("Attachment")
+			a1.WorldPosition = pos + Vector3.new(0, 2, 0)
+			a1.Parent = deck
+			ropeAtts = { a0, a1 }
+			local newRope = Instance.new("RopeConstraint")
+			newRope.Attachment0 = a0
+			newRope.Attachment1 = a1
+			newRope.Length = (a0.WorldPosition - a1.WorldPosition).Magnitude
+			newRope.Thickness = 0.15
+			newRope.Visible = true
+			newRope.Color = BrickColor.new("Brown")
+			newRope.Parent = hull
+			rope = newRope
 		end
 	end)
 

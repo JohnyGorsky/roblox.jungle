@@ -141,7 +141,8 @@ local function applyBite(def: EnemyDefs.EnemyDef, pos: Vector3)
 	if victim then
 		victim:SetAttribute("HP", math.max(0, ((victim:GetAttribute("HP") :: number?) or 0) - dmg))
 		flashHull()
-	else
+	elseif not boat:GetAttribute("Tied") then
+		-- tied up at a dock = the boat is safe; threats just patrol around it (no attack)
 		local hp = (boat:GetAttribute("HP") :: number?) or 0
 		boat:SetAttribute("HP", math.max(0, hp - dmg))
 		flashHull()
