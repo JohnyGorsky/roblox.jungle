@@ -76,6 +76,27 @@ local function buildDock(dock: RiverData.Dock, index: number)
 		end
 	end)
 
+	-- tie / untie: holds the boat at the dock so it won't drift off while the crew is ashore
+	local tie = Instance.new("ProximityPrompt")
+	tie.Name = "TiePrompt"
+	tie.ActionText = "Tie Boat"
+	tie.ObjectText = "Dock"
+	tie.HoldDuration = 0.6
+	tie.RequiresLineOfSight = false
+	tie.MaxActivationDistance = 45
+	tie.Parent = deck
+	tie.Triggered:Connect(function()
+		if boat:GetAttribute("Tied") then
+			hull.Anchored = false
+			boat:SetAttribute("Tied", false)
+			tie.ActionText = "Tie Boat"
+		elseif (hull.Position - pos).Magnitude <= REFUEL_RANGE then
+			hull.Anchored = true -- greybox hold; a soft rope/bob is a refinement
+			boat:SetAttribute("Tied", true)
+			tie.ActionText = "Untie Boat"
+		end
+	end)
+
 	model.Parent = docksRoot
 	placed[index] = model
 end

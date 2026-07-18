@@ -2,7 +2,7 @@
 
 **Project**: `roblox.jungle`
 **Created**: 2026-07-18 17:11:26
-**Status**: Requirements Gathering (intake)
+**Status**: ✅ Completed (2026-07-18)
 
 ## Requirements / goal
 
@@ -10,7 +10,7 @@ First slice of the on-foot excursion pillar (GAME.md 'Docks, tying up & jungle e
 
 ## Checklist
 
-- [ ] Requirements reviewed (this intake)
-- [ ] Implementation plan created & agreed
-- [ ] Implementation completed
-- [ ] Final summary + changelog written
+- [x] Requirements reviewed (this intake)
+- [x] Implementation plan created & agreed
+- [x] Implementation completed
+- [x] Final summary + changelog written

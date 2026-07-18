@@ -23,7 +23,7 @@ local lastShot: { [Player]: number } = {}
 local function enemyFrom(inst: Instance?): Model?
 	local cur: Instance? = inst
 	while cur and cur ~= Workspace do
-		if cur:IsA("Model") and CollectionService:HasTag(cur, "Enemy") then
+		if cur:IsA("Model") and (CollectionService:HasTag(cur, "Enemy") or CollectionService:HasTag(cur, "CampGuard")) then
 			return cur
 		end
 		cur = cur.Parent

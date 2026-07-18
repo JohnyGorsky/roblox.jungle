@@ -2,7 +2,7 @@
 
 **Project**: `roblox.jungle`
 **Created**: 2026-07-18
-**Status**: Proposed — awaiting go-ahead (user is playtesting)
+**Status**: ✅ Completed (2026-07-18)
 
 ## Goal
 Stand up the **first vertical slice of the on-foot excursion pillar**: tie the boat at a dock, walk
