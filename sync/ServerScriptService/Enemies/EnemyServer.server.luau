@@ -17,7 +17,8 @@ local EnemyDefs = require(ReplicatedStorage:WaitForChild("Enemies"):WaitForChild
 
 -- ── config ─────────────────────────────────────────────────────────────────
 local MAX_SEA, MAX_LAND = 4, 2
-local SEA_AHEAD_MIN, SEA_AHEAD_MAX = 70, 140
+local SEA_AHEAD_MIN, SEA_AHEAD_MAX = 180, 320 -- spawn well ahead → time to react at speed
+local FLANK_DIST = 12 -- crocs attack from ~this far off the boat centre (its side), not underneath
 local LAND_AHEAD_MIN, LAND_AHEAD_MAX = 60, 130
 local LAND_LEASH = 65 -- how far a panther will lunge from its bank anchor
 local CULL_BEHIND = 260
@@ -34,7 +35,7 @@ local hull = boat:WaitForChild("Hull") :: BasePart
 local WATER_Y = RiverData.WATER_Y
 local rng = Random.new()
 
-type State = { biteTimer: number, anchor: Vector3? }
+type State = { biteTimer: number, anchor: Vector3?, side: number? }
 local state: { [Model]: State } = {}
 
 local function spawnEnemy(def: EnemyDefs.EnemyDef, pos: Vector3, anchor: Vector3?): Model
@@ -171,7 +172,12 @@ local function tickEnemy(enemy: Model, dt: number)
 
 	if def.category == "sea" then
 		if dist <= def.aggroRadius then
-			stepToward(enemy, pos, lead, def.speed, dt, def.biteRange, nil)
+			-- attack from the boat's SIDE, not underneath it: aim at a flank point beside the hull
+			local right = hull.CFrame.RightVector
+			local flatRight = Vector3.new(right.X, 0, right.Z)
+			flatRight = if flatRight.Magnitude > 0.01 then flatRight.Unit else Vector3.new(1, 0, 0)
+			local target = lead + flatRight * ((st.side or 1) * FLANK_DIST)
+			stepToward(enemy, pos, target, def.speed, dt, 2, nil)
 		end
 	else -- land: leashed bank ambush
 		if dist <= def.aggroRadius then
@@ -219,7 +225,11 @@ task.spawn(function()
 		if boatAlive() and countByName("Crocodile") < MAX_SEA then
 			local z = hull.Position.Z + rng:NextNumber(SEA_AHEAD_MIN, SEA_AHEAD_MAX)
 			local x = RiverData.centerlineX(z) + rng:NextNumber(-1, 1) * RiverData.widthAt(z) * 0.35
-			spawnEnemy(EnemyDefs.Defs.Crocodile, Vector3.new(x, WATER_Y, z), nil)
+			local croc = spawnEnemy(EnemyDefs.Defs.Crocodile, Vector3.new(x, WATER_Y, z), nil)
+			local st = state[croc]
+			if st then
+				st.side = if rng:NextNumber(-1, 1) >= 0 then 1 else -1 -- attack from left or right
+			end
 		end
 		task.wait(spawnInterval(BASE_SEA_INTERVAL, "sea"))
 	end
