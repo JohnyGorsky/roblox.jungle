@@ -17,6 +17,10 @@ local FOLLOW_DIST = 24
 local FOLLOW_HEIGHT = 9
 local LOOK_AHEAD = 8
 local SMOOTH_K = 6
+local FOV_BASE = 68          -- FOV at rest
+local FOV_BOOST = 28         -- extra FOV at full speed → sense of rushing water
+local FOV_SPEED = 30         -- speed (studs/s) at which the boost maxes out
+local FOV_K = 3             -- how fast FOV eases toward its target
 
 local hull: BasePart? = nil
 local currentPos = Vector3.zero
@@ -70,7 +74,10 @@ local function update(dt: number)
 
 	camera.CFrame = cf
 	camera.Focus = CFrame.new(target)
-	camera.FieldOfView = 70 + math.clamp(flat.Magnitude / 8, 0, 15)
+
+	-- speed-based FOV, eased so it swells/settles smoothly instead of snapping with every wobble
+	local fovTarget = FOV_BASE + FOV_BOOST * math.clamp(flat.Magnitude / FOV_SPEED, 0, 1)
+	camera.FieldOfView += (fovTarget - camera.FieldOfView) * (1 - math.exp(-FOV_K * dt))
 end
 
 local function startCam(h: BasePart)
@@ -92,7 +99,7 @@ local function stopCam()
 	local camera = Workspace.CurrentCamera
 	if camera then
 		camera.CameraType = Enum.CameraType.Custom
-		camera.FieldOfView = 70
+		camera.FieldOfView = 70 -- restore Roblox default for on-foot
 	end
 end
 

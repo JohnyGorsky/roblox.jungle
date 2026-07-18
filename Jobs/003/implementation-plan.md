@@ -2,7 +2,7 @@
 
 **Project**: `roblox.jungle`
 **Created**: 2026-07-18
-**Status**: In progress (greybox)
+**Status**: ✅ Completed (2026-07-18) — feel signed off; see final-summary.md
 
 ## Goal
 

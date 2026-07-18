@@ -2,7 +2,7 @@
 
 **Project**: `roblox.jungle`
 **Created**: 2026-07-18 00:51:47
-**Status**: Requirements Gathering (intake)
+**Status**: ✅ Completed (2026-07-18)
 
 ## Requirements / goal
 
@@ -10,7 +10,7 @@ Greybox prototype to test if driving the boat down a winding, terrain-sculpted r
 
 ## Checklist
 
-- [ ] Requirements reviewed (this intake)
-- [ ] Implementation plan created & agreed
-- [ ] Implementation completed
-- [ ] Final summary + changelog written
+- [x] Requirements reviewed (this intake)
+- [x] Implementation plan created & agreed
+- [x] Implementation completed
+- [x] Final summary + changelog written

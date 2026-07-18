@@ -8,11 +8,14 @@
 --   • Thrust    — VectorForce = throttle × hull look-vector (world; at CoM).
 --   • Current   — VectorForce pushing downstream along the winding channel.
 --   • Drag      — VectorForce opposing horizontal velocity → a finite top speed + engine feel.
---   • Steer     — RUDDER model: yaw rate scales with forward speed, so you must be MOVING to turn
---                 (no tank-spin-in-place) and momentum carries the hull through the bend = drift.
---                 Reverse flips the rudder, like a real boat.
---   • Upright   — AlignOrientation (PrimaryAxisOnly) keeps the hull level (anti-capsize) while
---                 leaving yaw free for the steer, per the roblox-physics boat recipe.
+--   • Orient    — ONE AlignOrientation drives the whole hull attitude (per the roblox-physics
+--                 recipe: don't fight the same DOF with two constraints):
+--                   · Heading — RUDDER model. Steer integrates a desired yaw at a rate that scales
+--                     with forward speed, so you must be MOVING to turn (no tank-spin-in-place) and
+--                     linear momentum carries the hull through the bend = drift. Reverse flips it.
+--                   · Bank    — rolls INTO the turn (inside dips, outside lifts), ∝ steer × speed.
+--                   · Trim    — bow rises under throttle (planing), dips when braking, ∝ throttle.
+--                 It also keeps pitch/roll level (anti-capsize) when you're not steering/throttling.
 -- Input: a VehicleSeat (WASD + default mobile controls; ThrottleFloat/SteerFloat replicate to the
 -- server regardless of physics ownership).
 -- Authority: SERVER-OWNED. The VehicleSeat auto-hands ownership to the driver on sit; we re-assert
@@ -34,16 +37,18 @@ local HULL_SIZE = Vector3.new(14, 3, 28)
 local DENSITY = 0.7
 -- Speed knobs. Top speed ≈ THRUST/DRAG, idle downstream drift ≈ CURRENT/DRAG. THRUST is the natural
 -- target for a future "boat speed upgrade" (multiply it — e.g. THRUST * speedTier — for a faster engine).
-local THRUST = 90000         -- forward force at full throttle → top speed ≈ 45 studs/s
-local REVERSE = 45000
-local TURN = 1.6             -- max yaw rad/s (only reached at/above TURN_FULL_SPEED)
+local THRUST = 60000         -- forward force at full throttle → top speed ≈ 30 studs/s
+local REVERSE = 30000
+local TURN = 0.8             -- max yaw rad/s ≈ 46°/s (only reached at/above TURN_FULL_SPEED)
 local TURN_FULL_SPEED = 22   -- forward speed (studs/s) for full rudder authority; less speed = less turn
-local CURRENT = 16000        -- downstream push (0 to disable) → idle drift ≈ 8 studs/s
+local CURRENT = 12000        -- downstream push (0 to disable) → idle drift ≈ 6 studs/s
 local DRAG = 2000            -- horizontal velocity damping → top speed ≈ THRUST/DRAG
 local FLOAT_K = 8            -- buoyancy spring stiffness
 local FLOAT_D = 3            -- buoyancy damping
-local LEVEL_TORQUE = 4e6     -- upright (anti-capsize) torque cap
-local LEVEL_RESP = 25        -- upright responsiveness (5..200)
+local LEVEL_TORQUE = 4e6     -- orientation torque cap (also the anti-capsize authority)
+local LEVEL_RESP = 22        -- orientation responsiveness (5..200) — lower = softer sway
+local MAX_BANK = math.rad(11)  -- max roll INTO a turn at full steer + speed
+local MAX_PITCH = math.rad(7)  -- max bow-up (throttle) / bow-down (brake) trim
 
 -- river centerline sampled from the sculpt as {z, x}, upstream → downstream (measured from the
 -- water voxels; only points that are actually wet — the very upstream rim at z<-260 is dry grass)
@@ -89,16 +94,10 @@ local function buildBoat(): Model
 	hull.Parent = model
 	model.PrimaryPart = hull
 
-	-- force/velocity anchor at the hull center of mass
+	-- force/velocity/orientation anchor at the hull center of mass (identity orientation = hull axes)
 	local att = Instance.new("Attachment")
 	att.Name = "Root"
 	att.Parent = hull
-
-	-- primary axis points along hull-up so AlignOrientation(PrimaryAxisOnly) can hold it level
-	local upAtt = Instance.new("Attachment")
-	upAtt.Name = "UpAxis"
-	upAtt.CFrame = CFrame.Angles(0, 0, math.pi / 2) -- rotate local +X onto hull +Y (up)
-	upAtt.Parent = hull
 
 	local seat = Instance.new("VehicleSeat")
 	seat.Name = "DriverSeat"
@@ -126,24 +125,16 @@ local function buildBoat(): Model
 	force("Current")
 	force("Drag")
 
-	local steer = Instance.new("AngularVelocity")
-	steer.Name = "Steer"
-	steer.Attachment0 = att
-	steer.RelativeTo = Enum.ActuatorRelativeTo.World
-	steer.MaxTorque = 1e7
-	steer.AngularVelocity = Vector3.zero
-	steer.Parent = hull
-
-	-- keep the hull upright (roll/pitch) without touching yaw → no fight with the steer
+	-- single attitude controller: heading (steer) + bank + bow trim + keep-level. Driven each frame.
 	local level = Instance.new("AlignOrientation")
 	level.Name = "Level"
 	level.Mode = Enum.OrientationAlignmentMode.OneAttachment
-	level.Attachment0 = upAtt
-	level.PrimaryAxisOnly = true
+	level.Attachment0 = att
+	level.PrimaryAxisOnly = false
 	level.RigidityEnabled = false
 	level.MaxTorque = LEVEL_TORQUE
 	level.Responsiveness = LEVEL_RESP
-	level.CFrame = CFrame.Angles(0, 0, math.pi / 2) -- target primary axis = world up
+	level.CFrame = hull.CFrame.Rotation -- start facing downstream, level
 	level.Parent = hull
 
 	model.Parent = Workspace
@@ -157,7 +148,10 @@ local buoy = hull:FindFirstChild("Buoy") :: VectorForce
 local thrust = hull:FindFirstChild("Thrust") :: VectorForce
 local current = hull:FindFirstChild("Current") :: VectorForce
 local drag = hull:FindFirstChild("Drag") :: VectorForce
-local steer = hull:FindFirstChild("Steer") :: AngularVelocity
+local level = hull:FindFirstChild("Level") :: AlignOrientation
+
+-- integrated desired heading (yaw). Steering changes this; AlignOrientation drives the hull to it.
+local desiredYaw = select(2, hull.CFrame:ToOrientation())
 
 -- SERVER-OWNED physics. VehicleSeat hands ownership to the driver on sit; re-assert server ownership
 -- so this loop reads accurate state and stays authoritative.
@@ -178,7 +172,7 @@ end
 claimServerOwnership()
 seat:GetPropertyChangedSignal("Occupant"):Connect(claimServerOwnership)
 
-RunService.Heartbeat:Connect(function()
+RunService.Heartbeat:Connect(function(dt: number)
 	local pos = hull.Position
 	local vel = hull.AssemblyLinearVelocity
 	local mass = hull.AssemblyMass
@@ -200,10 +194,15 @@ RunService.Heartbeat:Connect(function()
 	current.Force = downstream(pos.Z) * CURRENT
 	drag.Force = Vector3.new(-vel.X * DRAG, 0, -vel.Z * DRAG) -- horizontal only; Y left to buoyancy
 
-	-- rudder: turn authority ∝ signed forward speed (0 when stopped; reverse flips it)
+	-- rudder heading: turn rate ∝ signed forward speed (0 when stopped; reverse flips it)
 	local fwdSpeed = vel:Dot(look)
 	local authority = math.clamp(fwdSpeed / TURN_FULL_SPEED, -1, 1)
-	steer.AngularVelocity = Vector3.new(0, -s * TURN * authority, 0)
+	desiredYaw -= s * TURN * authority * dt
+
+	-- attitude: bank INTO the turn (inside dips) ∝ steer × |speed|; bow up on throttle, down on brake
+	local bank = -s * math.abs(authority) * MAX_BANK
+	local pitch = t * MAX_PITCH
+	level.CFrame = CFrame.Angles(0, desiredYaw, 0) * CFrame.Angles(pitch, 0, bank)
 end)
 
 print(("[Boat] built at %s (water y=%d, server-owned)"):format(tostring(START), WATER_Y))
