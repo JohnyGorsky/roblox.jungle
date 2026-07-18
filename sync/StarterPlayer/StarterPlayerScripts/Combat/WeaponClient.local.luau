@@ -60,11 +60,11 @@ local function tracer(toPos: Vector3)
 	end)
 end
 
--- you can't shoot while driving (in the DriverSeat) or while busy (fishing/catching)
+-- you can't use the handheld while driving, manning the mounted gun, or busy (fishing/carrying)
 local function localCanShoot(): boolean
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if hum and hum.SeatPart and hum.SeatPart.Name == "DriverSeat" then
+	if hum and hum.SeatPart and (hum.SeatPart.Name == "DriverSeat" or hum.SeatPart.Name == "GunSeat") then
 		return false
 	end
 	if player:GetAttribute("Busy") == true then
