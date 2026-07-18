@@ -59,7 +59,6 @@ end
 local centerX = RiverData.centerlineX(HUB_Z)
 local waterEdgeX = centerX + HUB_SIDE * (RiverData.widthAt(HUB_Z) * 0.5)
 local PLATFORM_SX = 36
-local DOCK_MARGIN = 6 -- studs of clear water kept between the boat's bank-side edge and the shore (never beaches)
 
 -- Keep ALL collidable land geometry on the LAND side (past waterEdgeX) so nothing overlaps the boat.
 local platformCenter = Vector3.new(waterEdgeX + HUB_SIDE * (PLATFORM_SX / 2), WATER_Y + 2.5, HUB_Z)
@@ -73,10 +72,46 @@ block(
 )
 
 -- The boat spawns mid-channel; it starts moored OFF the pier. Players PULL the rope to reel it in until it
--- docks ALONGSIDE the jetty — kept fully in the water (DOCK_MARGIN of clear water to shore). Translate only
--- (keep heading) so BoatServer's captured desiredYaw stays valid and the boat won't snap-rotate on release.
+-- docks ALONGSIDE the jetty. Translate only (keep heading) so BoatServer's captured desiredYaw stays valid.
 local rotOnly = hull.CFrame - hull.CFrame.Position
-local DOCKED_X = waterEdgeX - HUB_SIDE * (hull.Size.X / 2 + DOCK_MARGIN)
+local halfBeam = hull.Size.X / 2
+local hullBottomY = WATER_Y + 2 - hull.Size.Y / 2
+
+-- Terrain-aware docking: the bank slopes UNDERWATER, so docking by a fixed margin can leave the boat's
+-- bank-side edge buried in the bank — fine while anchored, but on release the collision blows the assembly
+-- into NaN and the engine deletes it. Probe the ground and dock only as far in as the water is deep enough
+-- for the hull's bank-side edge (with clearance). Adapts to the real slope (and to a hand-built shore).
+local function groundYat(x: number, z: number): number
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { boat, area }
+	params.IgnoreWater = true
+	local r = Workspace:Raycast(Vector3.new(x, WATER_Y + 12, z), Vector3.new(0, -80, 0), params)
+	return if r then r.Position.Y else -1e9 -- no hit = deep water
+end
+-- highest terrain under the WHOLE hull footprint if its bank-side edge were at edgeX (samples a grid, so a
+-- bump under the middle of the boat is caught too, not just the bank edge)
+local halfLen = hull.Size.Z / 2
+local function maxGroundUnderBoat(edgeX: number): number
+	local m = -1e9
+	for bx = 0, 4 do
+		local x = edgeX - HUB_SIDE * (bx / 4) * (2 * halfBeam) -- across the beam, bank edge → far edge
+		for _, z in { HUB_Z - halfLen, HUB_Z, HUB_Z + halfLen } do
+			m = math.max(m, groundYat(x, z))
+		end
+	end
+	return m
+end
+local DECK_CLEAR = 3 -- studs the terrain must sit below the hull bottom
+local boatEdgeX = waterEdgeX
+for step = 0, 90 do -- scan the boat outward from the shore until its whole footprint clears the bank
+	local testEdge = waterEdgeX - HUB_SIDE * step
+	if maxGroundUnderBoat(testEdge) < hullBottomY - DECK_CLEAR then
+		boatEdgeX = testEdge
+		break
+	end
+end
+local DOCKED_X = boatEdgeX - HUB_SIDE * halfBeam
 local REEL_OFFSET = 26 -- how far off the pier it starts (studs)
 local dockedPos = Vector3.new(DOCKED_X, WATER_Y + 2, HUB_Z)
 local startPos = Vector3.new(DOCKED_X - HUB_SIDE * REEL_OFFSET, WATER_Y + 2, HUB_Z)
@@ -92,7 +127,6 @@ Workspace:SetAttribute("HubSpawn", spawnPos)
 
 -- jetty: a walkway from the shore out over the water to the boat's side, ending ~1 stud short of the boat
 -- (no overlap → the boat launches free). Players walk it to board. CanCollide so you can stand on it.
-local boatEdgeX = DOCKED_X + HUB_SIDE * (hull.Size.X / 2) -- boat edge facing the shore
 local jettyTipX = boatEdgeX + HUB_SIDE * 1 -- 1-stud step gap from the boat
 local jettyLenX = math.max(2, math.abs(waterEdgeX - jettyTipX))
 local jettyCenterX = (waterEdgeX + jettyTipX) / 2
@@ -169,9 +203,11 @@ local function startRun()
 	started = true
 	Workspace:SetAttribute("RunStarted", true)
 	hull.Anchored = false
-	-- re-assert SERVER ownership (the boat was anchored at build so BoatServer's claimServerOwnership was
-	-- skipped). Without this, a player standing on the freed boat becomes its owner and the current force
-	-- drifts it away fast, leaving them behind. Server-owned = the base-game behaviour (driver drives it).
+	-- clean release: zero any residual velocity from the anchored→unanchored transition (a standing player
+	-- on the freed boat can otherwise spike it into a NaN physics explosion) and re-assert SERVER ownership
+	-- (the boat was anchored at build so BoatServer's claimServerOwnership had been skipped).
+	hull.AssemblyLinearVelocity = Vector3.zero
+	hull.AssemblyAngularVelocity = Vector3.zero
 	pcall(function()
 		hull:SetNetworkOwner(nil)
 	end)
@@ -183,6 +219,33 @@ local function startRun()
 	Workspace:SetAttribute("HubSpawn", nil)
 	-- leave the greybox hub standing behind (the crew has sailed off on the boat)
 	print("[Staging] rope untied — RUN STARTED")
+
+	-- DEBUG: trace what happens to the boat right after the real untie (owner / drift / stability)
+	local function ownerName(): string
+		local ok, no = pcall(function()
+			return hull:GetNetworkOwner()
+		end)
+		if not ok then
+			return "ERR"
+		end
+		return if no then no.Name else "SERVER(nil)"
+	end
+	print(("[Staging DEBUG] untie: anchored=%s owner=%s pos=(%.1f,%.1f,%.1f) onBoat=%s")
+		:format(tostring(hull.Anchored), ownerName(), hull.Position.X, hull.Position.Y, hull.Position.Z,
+			tostring(boat:GetAttribute("OnBoatCount"))))
+	task.spawn(function()
+		for i = 1, 8 do
+			task.wait(0.5)
+			if not hull or not hull.Parent then
+				print(("[Staging DEBUG] t+%.1fs — HULL GONE/DESTROYED"):format(i * 0.5))
+				return
+			end
+			local p, v = hull.Position, hull.AssemblyLinearVelocity
+			local finite = p.X == p.X and p.Y == p.Y and p.Z == p.Z
+			print(("[Staging DEBUG] t+%.1fs owner=%s pos=(%.0f,%.0f,%.0f) speed=%.1f finite=%s")
+				:format(i * 0.5, ownerName(), p.X, p.Y, p.Z, v.Magnitude, tostring(finite)))
+		end
+	end)
 end
 
 prompt.Triggered:Connect(function()
