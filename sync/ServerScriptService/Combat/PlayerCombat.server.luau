@@ -7,6 +7,7 @@
 -- Server-authoritative.
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local MAX_HP = 100
 local REVIVE_HP = 50
@@ -19,6 +20,16 @@ local function setupCharacter(player: Player, char: Model)
 	local hum = char:WaitForChild("Humanoid") :: Humanoid
 	local root = char:WaitForChild("HumanoidRootPart") :: BasePart
 	local walk, jump = hum.WalkSpeed, hum.JumpHeight
+
+	-- spawn/respawn the crew ON the boat — the world is a regenerated river, so the default spawn
+	-- point is over the void. (A live Humanoid then floats in water / stands on land on its own.)
+	task.spawn(function()
+		local boatModel = Workspace:WaitForChild("Boat", 15)
+		local h = boatModel and boatModel:FindFirstChild("Hull")
+		if h and h:IsA("BasePart") and root.Parent then
+			root.CFrame = h.CFrame * CFrame.new(0, 5, 0)
+		end
+	end)
 
 	char:SetAttribute("MaxHP", MAX_HP)
 	char:SetAttribute("HP", MAX_HP)
@@ -53,8 +64,9 @@ local function setupCharacter(player: Player, char: Model)
 		end
 		char:SetAttribute("Downed", true)
 		char:SetAttribute("HP", 0)
+		-- immobilize but keep the Humanoid ALIVE and upright, so it floats in water / stays on land
+		-- (no PlatformStand ragdoll → doesn't slide off the boat or sink through the water)
 		hum.WalkSpeed, hum.JumpHeight = 0, 0
-		hum.PlatformStand = true -- flop over (greybox "downed" pose)
 
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.Name = "RevivePrompt"
@@ -81,7 +93,6 @@ local function setupCharacter(player: Player, char: Model)
 			revive()
 		end)
 
-		hum.PlatformStand = true
 		bleedThread = task.delay(BLEEDOUT, function()
 			if char:GetAttribute("Downed") then
 				hum.Health = 0 -- bled out → real death → respawn

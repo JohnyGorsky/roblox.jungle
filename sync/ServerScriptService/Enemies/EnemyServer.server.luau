@@ -1,9 +1,10 @@
 --!strict
--- EnemyServer.server.luau — croc spawn director + multi-croc AI (Jobs 006 → 007).
+-- EnemyServer.server.luau — sea + land threat spawn director & AI (Jobs 006 → 009).
 --
--- Spawns crocs near/ahead of the boat as it travels (capped, rate escalates with distance), each
--- running the same Humanoid-less chase→bite AI. A single global Heartbeat ticks ALL Enemy-tagged
--- crocs (roblox-ai multi-agent pattern); crocs left far behind are culled. Server-authoritative.
+-- SEA crocs swim the open channel and chase the boat. LAND panthers ambush from the banks, leashed to
+-- their spawn anchor (they can't chase across open water). One global Heartbeat ticks all Enemy-tagged
+-- foes (roblox-ai multi-agent). Bite damage + spawn rate scale with time of day via
+-- EnemyDefs.strengthFor (sea peaks at night, land by day). Server-authoritative.
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -15,12 +16,14 @@ local RiverData = require(ReplicatedStorage:WaitForChild("River"):WaitForChild("
 local EnemyDefs = require(ReplicatedStorage:WaitForChild("Enemies"):WaitForChild("EnemyDefs"))
 
 -- ── config ─────────────────────────────────────────────────────────────────
-local MAX_ACTIVE = 4 -- most crocs alive at once
-local SPAWN_AHEAD_MIN, SPAWN_AHEAD_MAX = 70, 140 -- studs ahead of the boat to spawn
-local CULL_BEHIND = 260 -- despawn a croc once the boat is this far past it
-local LEAD_TIME = 0.8 -- boat-velocity lead for interception
-local SPAWN_INTERVAL_NEAR, SPAWN_INTERVAL_FAR = 5.0, 2.0 -- seconds between spawns, early → late run
-local ESCALATE_DISTANCE = 12000 -- distance over which spawn rate ramps to its fastest
+local MAX_SEA, MAX_LAND = 4, 2
+local SEA_AHEAD_MIN, SEA_AHEAD_MAX = 70, 140
+local LAND_AHEAD_MIN, LAND_AHEAD_MAX = 60, 130
+local LAND_LEASH = 65 -- how far a panther will lunge from its bank anchor
+local CULL_BEHIND = 260
+local LEAD_TIME = 0.8
+local BASE_SEA_INTERVAL, BASE_LAND_INTERVAL = 4.0, 6.0
+local ESCALATE_DISTANCE = 12000
 -- ───────────────────────────────────────────────────────────────────────────
 
 if not Workspace:GetAttribute("RiverReady") then
@@ -31,10 +34,10 @@ local hull = boat:WaitForChild("Hull") :: BasePart
 local WATER_Y = RiverData.WATER_Y
 local rng = Random.new()
 
-type CrocState = { biteTimer: number }
-local state: { [Model]: CrocState } = {}
+type State = { biteTimer: number, anchor: Vector3? }
+local state: { [Model]: State } = {}
 
-local function spawnCroc(def: EnemyDefs.EnemyDef, pos: Vector3): Model
+local function spawnEnemy(def: EnemyDefs.EnemyDef, pos: Vector3, anchor: Vector3?): Model
 	local model = Instance.new("Model")
 	model.Name = def.name
 
@@ -43,7 +46,7 @@ local function spawnCroc(def: EnemyDefs.EnemyDef, pos: Vector3): Model
 	body.Size = def.size
 	body.Color = def.color
 	body.Material = Enum.Material.SmoothPlastic
-	body.Anchored = true -- kinematic: the server drives it via PivotTo
+	body.Anchored = true -- kinematic (PivotTo)
 	body.CanCollide = false
 	body.CFrame = CFrame.new(pos)
 	body.Parent = model
@@ -62,18 +65,17 @@ local function spawnCroc(def: EnemyDefs.EnemyDef, pos: Vector3): Model
 	model:SetAttribute("HP", def.hp)
 	model:SetAttribute("MaxHP", def.hp)
 	model:SetAttribute("Category", def.category)
-	CollectionService:AddTag(model, "Enemy") -- weapon fire + the global AI tick find crocs by this tag
+	CollectionService:AddTag(model, "Enemy")
 	model.Parent = Workspace
-	state[model] = { biteTimer = def.biteCooldown }
+	state[model] = { biteTimer = def.biteCooldown, anchor = anchor }
 	return model
 end
 
-local function despawn(croc: Model)
-	state[croc] = nil
-	croc:Destroy()
+local function despawn(enemy: Model)
+	state[enemy] = nil
+	enemy:Destroy()
 end
 
--- greybox hit feedback: flash the hull red
 local flashing = false
 local function flashHull()
 	if flashing then
@@ -88,17 +90,14 @@ local function flashHull()
 	end)
 end
 
-local function damageBoat(amount: number)
-	local hp = (boat:GetAttribute("HP") :: number?) or 0
-	boat:SetAttribute("HP", math.max(0, hp - amount))
-	flashHull()
-end
-
 local function boatAlive(): boolean
 	return hull.Parent ~= nil and ((boat:GetAttribute("HP") :: number?) or 1) > 0
 end
 
--- nearest alive, not-already-downed player character within range of a point (a croc's juicy target)
+local function currentPhase(): string
+	return (Workspace:GetAttribute("Phase") :: string?) or "day"
+end
+
 local function nearestPlayer(pos: Vector3, range: number): Model?
 	local best: Model? = nil
 	local bestD = range
@@ -115,80 +114,129 @@ local function nearestPlayer(pos: Vector3, range: number): Model?
 	return best
 end
 
--- one croc's step: cull / death / chase / bite
-local function tickCroc(croc: Model, def: EnemyDefs.EnemyDef, dt: number)
-	local body = croc.PrimaryPart
-	if not body then
-		despawn(croc)
+-- move an enemy one step toward target (flat, on the water surface); optionally leashed to an anchor
+local function stepToward(enemy: Model, from: Vector3, target: Vector3, speed: number, dt: number, stopAt: number, anchor: Vector3?)
+	local dir = Vector3.new(target.X - from.X, 0, target.Z - from.Z)
+	if dir.Magnitude < 0.01 then
 		return
 	end
-	if ((croc:GetAttribute("HP") :: number?) or 0) <= 0 then
-		despawn(croc)
-		return
-	end
-
-	local crocPos = body.Position
-	local boatPos = hull.Position
-	-- cull crocs the boat has left well behind (they lost the chase)
-	if boatPos.Z - crocPos.Z > CULL_BEHIND then
-		despawn(croc)
-		return
-	end
-
-	local st = state[croc]
-	if not st then
-		return
-	end
-	st.biteTimer += dt
-
-	local dist = (Vector3.new(boatPos.X, 0, boatPos.Z) - Vector3.new(crocPos.X, 0, crocPos.Z)).Magnitude
-	if dist <= def.aggroRadius then
-		local lead = boatPos + hull.AssemblyLinearVelocity * LEAD_TIME
-		local dir = Vector3.new(lead.X - crocPos.X, 0, lead.Z - crocPos.Z)
-		if dir.Magnitude > 0.01 then
-			dir = dir.Unit
-			local step = math.min(def.speed * dt, math.max(dist - def.biteRange * 0.5, 0))
-			local newPos = Vector3.new(crocPos.X + dir.X * step, WATER_Y, crocPos.Z + dir.Z * step)
-			croc:PivotTo(CFrame.lookAt(newPos, newPos + dir))
+	dir = dir.Unit
+	local reach = (Vector3.new(target.X, 0, target.Z) - Vector3.new(from.X, 0, from.Z)).Magnitude
+	local step = math.min(speed * dt, math.max(reach - stopAt * 0.5, 0))
+	local newPos = Vector3.new(from.X + dir.X * step, WATER_Y, from.Z + dir.Z * step)
+	if anchor then
+		local off = Vector3.new(newPos.X - anchor.X, 0, newPos.Z - anchor.Z)
+		if off.Magnitude > LAND_LEASH then
+			local clamped = anchor + off.Unit * LAND_LEASH
+			newPos = Vector3.new(clamped.X, WATER_Y, clamped.Z)
 		end
-		if dist <= def.biteRange and st.biteTimer >= def.biteCooldown then
-			st.biteTimer = 0
-			-- go for an exposed player if one's in reach, otherwise chomp the boat
-			local victim = nearestPlayer(crocPos, def.biteRange)
-			if victim then
-				local hp = (victim:GetAttribute("HP") :: number?) or 0
-				victim:SetAttribute("HP", math.max(0, hp - def.biteDamage))
-				flashHull() -- brief shared feedback
-			else
-				damageBoat(def.biteDamage)
-			end
-		end
+	end
+	enemy:PivotTo(CFrame.lookAt(newPos, newPos + dir))
+end
+
+local function applyBite(def: EnemyDefs.EnemyDef, pos: Vector3)
+	local dmg = def.biteDamage * EnemyDefs.strengthFor(def.category, currentPhase())
+	local victim = nearestPlayer(pos, def.biteRange)
+	if victim then
+		victim:SetAttribute("HP", math.max(0, ((victim:GetAttribute("HP") :: number?) or 0) - dmg))
+		flashHull()
+	else
+		local hp = (boat:GetAttribute("HP") :: number?) or 0
+		boat:SetAttribute("HP", math.max(0, hp - dmg))
+		flashHull()
 	end
 end
 
-local def = EnemyDefs.Crocodile
+local function tickEnemy(enemy: Model, dt: number)
+	local body = enemy.PrimaryPart
+	local def = EnemyDefs.Defs[enemy.Name]
+	local st = state[enemy]
+	if not body or not def or not st then
+		despawn(enemy)
+		return
+	end
+	if ((enemy:GetAttribute("HP") :: number?) or 0) <= 0 then
+		despawn(enemy)
+		return
+	end
+	local pos = body.Position
+	local boatPos = hull.Position
+	if boatPos.Z - pos.Z > CULL_BEHIND then
+		despawn(enemy)
+		return
+	end
+	st.biteTimer += dt
+	local dist = (Vector3.new(boatPos.X, 0, boatPos.Z) - Vector3.new(pos.X, 0, pos.Z)).Magnitude
+	local lead = boatPos + hull.AssemblyLinearVelocity * LEAD_TIME
 
--- global AI tick over every live croc
+	if def.category == "sea" then
+		if dist <= def.aggroRadius then
+			stepToward(enemy, pos, lead, def.speed, dt, def.biteRange, nil)
+		end
+	else -- land: leashed bank ambush
+		if dist <= def.aggroRadius then
+			stepToward(enemy, pos, lead, def.speed, dt, def.biteRange, st.anchor)
+		elseif st.anchor then
+			stepToward(enemy, pos, st.anchor, def.speed * 0.6, dt, 2, nil) -- slink back to the bank
+		end
+	end
+
+	if dist <= def.biteRange and st.biteTimer >= def.biteCooldown then
+		st.biteTimer = 0
+		applyBite(def, pos)
+	end
+end
+
+local function countByName(name: string): number
+	local n = 0
+	for _, e in CollectionService:GetTagged("Enemy") do
+		if e.Name == name then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- global AI tick
 RunService.Heartbeat:Connect(function(dt: number)
-	for _, croc in CollectionService:GetTagged("Enemy") do
-		if croc:IsA("Model") and croc.Parent == Workspace then
-			tickCroc(croc, def, dt)
+	for _, enemy in CollectionService:GetTagged("Enemy") do
+		if enemy:IsA("Model") and enemy.Parent == Workspace then
+			tickEnemy(enemy, dt)
 		end
 	end
 end)
 
--- spawn director: keep up to MAX_ACTIVE crocs coming, faster the further you've travelled
+-- spawn interval: escalates with distance, and shortens when this category's time-of-day is strong
+local function spawnInterval(base: number, category: string): number
+	local dist = math.max(0, RiverData.worldToDistance(hull.Position.Z))
+	local ramp = base * (1 - 0.5 * math.clamp(dist / ESCALATE_DISTANCE, 0, 1))
+	return ramp / EnemyDefs.strengthFor(category, currentPhase())
+end
+
+-- SEA spawner: crocs in the channel ahead
 task.spawn(function()
 	while true do
-		if boatAlive() and #CollectionService:GetTagged("Enemy") < MAX_ACTIVE then
-			local z = hull.Position.Z + rng:NextNumber(SPAWN_AHEAD_MIN, SPAWN_AHEAD_MAX)
+		if boatAlive() and countByName("Crocodile") < MAX_SEA then
+			local z = hull.Position.Z + rng:NextNumber(SEA_AHEAD_MIN, SEA_AHEAD_MAX)
 			local x = RiverData.centerlineX(z) + rng:NextNumber(-1, 1) * RiverData.widthAt(z) * 0.35
-			spawnCroc(def, Vector3.new(x, WATER_Y, z))
+			spawnEnemy(EnemyDefs.Defs.Crocodile, Vector3.new(x, WATER_Y, z), nil)
 		end
-		local dist = math.max(0, RiverData.worldToDistance(hull.Position.Z))
-		local t = math.clamp(dist / ESCALATE_DISTANCE, 0, 1)
-		task.wait(SPAWN_INTERVAL_NEAR + (SPAWN_INTERVAL_FAR - SPAWN_INTERVAL_NEAR) * t)
+		task.wait(spawnInterval(BASE_SEA_INTERVAL, "sea"))
 	end
 end)
 
-print(("[Enemy] spawn director online (max %d crocs)"):format(MAX_ACTIVE))
+-- LAND spawner: panthers on the bank ahead (anchored to that bank point)
+task.spawn(function()
+	while true do
+		if boatAlive() and countByName("Panther") < MAX_LAND then
+			local z = hull.Position.Z + rng:NextNumber(LAND_AHEAD_MIN, LAND_AHEAD_MAX)
+			local side = if rng:NextNumber(-1, 1) >= 0 then 1 else -1
+			local edge = RiverData.centerlineX(z) + side * (RiverData.widthAt(z) * 0.5 + 8)
+			local anchor = Vector3.new(edge, WATER_Y, z)
+			spawnEnemy(EnemyDefs.Defs.Panther, anchor, anchor)
+		end
+		task.wait(spawnInterval(BASE_LAND_INTERVAL, "land"))
+	end
+end)
+
+print("[Enemy] sea + land spawn directors online")
