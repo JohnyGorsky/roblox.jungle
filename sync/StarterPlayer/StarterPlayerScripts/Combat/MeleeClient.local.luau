@@ -17,7 +17,16 @@ local SWING_TIME = 0.22
 local swinging = false
 
 local function swordActive(): boolean
-	return player:GetAttribute("ActiveItem") == "Sword" and player:GetAttribute("Busy") ~= true
+	if player:GetAttribute("ActiveItem") ~= "Sword" or player:GetAttribute("Busy") == true then
+		return false
+	end
+	-- can't swing while driving the boat or manning the mounted gun
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.SeatPart and (hum.SeatPart.Name == "DriverSeat" or hum.SeatPart.Name == "GunSeat") then
+		return false
+	end
+	return true
 end
 
 -- quick demo swing: a neon blade sweeps a downward arc in front of the character

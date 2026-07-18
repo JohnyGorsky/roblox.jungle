@@ -25,6 +25,18 @@ remote.OnServerEvent:Connect(function(player: Player)
 	if player:GetAttribute("Busy") == true then
 		return -- hands full (carrying)
 	end
+
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not char or not root or not hum or char:GetAttribute("Downed") then
+		return
+	end
+	-- can't swing while driving the boat or manning the mounted gun (same rule as the handheld)
+	if hum.SeatPart and (hum.SeatPart.Name == "DriverSeat" or hum.SeatPart.Name == "GunSeat") then
+		return
+	end
+
 	local interval = def.swingInterval or 0.6
 	local now = time()
 	local last = lastSwing[player]
@@ -32,12 +44,6 @@ remote.OnServerEvent:Connect(function(player: Player)
 		return
 	end
 	lastSwing[player] = now
-
-	local char = player.Character
-	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not char or not root or char:GetAttribute("Downed") then
-		return
-	end
 
 	local range = def.meleeRange or 9
 	local origin = root.Position
