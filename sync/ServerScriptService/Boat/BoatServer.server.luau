@@ -183,7 +183,24 @@ end
 claimServerOwnership()
 seat:GetPropertyChangedSignal("Occupant"):Connect(claimServerOwnership)
 
+local logAccum = 0
 RunService.Heartbeat:Connect(function(dt: number)
+	-- KEEP SERVER OWNERSHIP even while driven. The VehicleSeat hands the boat to the driver's client on
+	-- sit, but the buoyancy force is computed HERE (server-side) — a client-owned boat + server-computed
+	-- force means the spring reacts to LAGGED replicated position → a delayed-feedback loop that makes the
+	-- boat bounce higher and higher. Re-grab ownership whenever a client holds it (the seat only hands it
+	-- over once on sit, so this settles immediately and doesn't thrash). Inputs replicate regardless.
+	if not hull:IsGrounded() then
+		local ok, owner = pcall(function()
+			return hull:GetNetworkOwner()
+		end)
+		if ok and owner ~= nil then
+			pcall(function()
+				hull:SetNetworkOwner(nil)
+			end)
+		end
+	end
+
 	local pos = hull.Position
 	local vel = hull.AssemblyLinearVelocity
 	local mass = hull.AssemblyMass
@@ -235,6 +252,20 @@ RunService.Heartbeat:Connect(function(dt: number)
 	local bank = -s * math.abs(authority) * MAX_BANK
 	local pitch = t * MAX_PITCH
 	level.CFrame = CFrame.Angles(0, desiredYaw, 0) * CFrame.Angles(pitch, 0, bank)
+
+	-- TEMP DEBUG (remove after): trace vertical stability during a real drive
+	logAccum += dt
+	if logAccum >= 0.2 and Workspace:GetAttribute("RunStarted") then
+		logAccum = 0
+		local ok, owner = pcall(function()
+			return hull:GetNetworkOwner()
+		end)
+		local curPitch = select(1, hull.CFrame:ToOrientation())
+		local buoyAcc = mass > 0 and (buoy.Force.Y / mass - g) or 0
+		print(("[BoatDBG] Y=%.2f velY=%.2f buoyAcc=%.1f curPitch=%.1f° pitchTgt=%.1f° thr=%.1f spd=%.1f mass=%.0f owner=%s aboveCutoff=%s")
+			:format(pos.Y, vel.Y, buoyAcc, math.deg(curPitch), math.deg(pitch), t, vel.Magnitude, mass,
+				(ok and (owner and owner.Name or "SERVER")) or "err", tostring(pos.Y >= WATER_Y + 12)))
+	end
 end)
 
 print(("[Boat] built at %s (water y=%d, server-owned)"):format(tostring(START), WATER_Y))
