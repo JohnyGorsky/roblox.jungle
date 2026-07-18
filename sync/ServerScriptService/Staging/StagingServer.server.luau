@@ -72,6 +72,12 @@ block(
 local edgePoint = Vector3.new(waterEdgeX, WATER_Y + 2.5, HUB_Z)
 block("Gangway", Vector3.new(6, 0.5, 14), Color3.fromRGB(110, 80, 55), CFrame.new(edgePoint - Vector3.new(HUB_SIDE * 3, 0, 0)), Enum.Material.WoodPlanks)
 
+-- pull the moored boat up ALONGSIDE the pier (it spawns mid-channel). Translate only — keep the boat's
+-- heading so BoatServer's captured desiredYaw stays valid and it won't snap-rotate when released.
+local mooredPos = Vector3.new(waterEdgeX - HUB_SIDE * (hull.Size.X / 2 + 2), WATER_Y + 2, HUB_Z)
+local rotOnly = hull.CFrame - hull.CFrame.Position
+boat:PivotTo(CFrame.new(mooredPos) * rotOnly)
+
 -- hub spawn point (read by PlayerCombat before the run starts)
 local spawnPos = platformCenter + Vector3.new(0, 3, 0)
 Workspace:SetAttribute("HubSpawn", spawnPos)
