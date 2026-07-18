@@ -10,6 +10,10 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local InventoryService = require(ServerStorage:WaitForChild("Inventory"):WaitForChild("InventoryService"))
 
+-- TEMP dev toggle: give every player a Pistol + Shotgun (with ammo) on spawn so guns can be tested
+-- without driving to a camp. Set false (or delete) once camp weapon-crate looting is the real path.
+local DEV_STARTER_GUNS = true
+
 local remote = Instance.new("RemoteEvent")
 remote.Name = "InventoryCmd"
 remote.Parent = ReplicatedStorage
@@ -24,6 +28,10 @@ end)
 
 local function setupPlayer(player: Player)
 	InventoryService.seed(player)
+	if DEV_STARTER_GUNS then
+		InventoryService.grant(player, "Pistol")
+		InventoryService.grant(player, "Shotgun")
+	end
 	if player.Character then
 		InventoryService.onCharacterAdded(player)
 	end
