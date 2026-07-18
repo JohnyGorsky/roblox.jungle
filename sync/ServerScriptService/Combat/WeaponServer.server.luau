@@ -41,10 +41,15 @@ local function isDriver(player: Player): boolean
 	return seat ~= nil and seat:IsA("VehicleSeat") and hum ~= nil and seat.Occupant == hum
 end
 
--- who's allowed to shoot: not the driver, and not "Busy" (fishing/catching sets this attribute)
+-- who's allowed to shoot the handheld: not the driver, not manning the mounted gun, not "Busy"
 local function canShoot(player: Player): boolean
 	if isDriver(player) then
 		return false
+	end
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.SeatPart and hum.SeatPart.Name == "GunSeat" then
+		return false -- manning the mounted gun → use that, not the handheld
 	end
 	if player:GetAttribute("Busy") == true then
 		return false

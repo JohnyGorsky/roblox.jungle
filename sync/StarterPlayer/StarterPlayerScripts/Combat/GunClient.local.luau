@@ -82,12 +82,51 @@ UserInputService.InputChanged:Connect(function(input: InputObject)
 	aimRemote:FireServer(yaw, pitch)
 end)
 
+-- visual tracer along the SAME line the server fires (origin/dir match) → confirms the crosshair
+local function drawTracer()
+	local base = gunBase()
+	if not base then
+		return
+	end
+	local aim = base.CFrame * CFrame.Angles(pitch, yaw, 0)
+	local origin = (aim * CFrame.new(0, CAM_UP, CAM_BACK)).Position
+	local dir = aim.LookVector
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local filter: { Instance } = {}
+	if player.Character then
+		table.insert(filter, player.Character)
+	end
+	local boat = Workspace:FindFirstChild("Boat")
+	if boat then
+		table.insert(filter, boat)
+	end
+	params.FilterDescendantsInstances = filter
+	params.IgnoreWater = true
+	local hit = Workspace:Raycast(origin, dir * 350, params)
+	local toPos = if hit then hit.Position else origin + dir * 350
+	local muzzle = base.Position + dir * 5
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.Material = Enum.Material.Neon
+	part.Color = Color3.fromRGB(255, 230, 120)
+	part.Size = Vector3.new(0.2, 0.2, (toPos - muzzle).Magnitude)
+	part.CFrame = CFrame.lookAt((muzzle + toPos) / 2, toPos)
+	part.Parent = Workspace
+	task.delay(0.06, function()
+		part:Destroy()
+	end)
+end
+
 UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 	if not seated or gameProcessed then
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		fireRemote:FireServer()
+		drawTracer()
 	end
 end)
 
