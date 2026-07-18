@@ -2,7 +2,20 @@
 
 **Project**: `roblox.jungle`
 **Completed**: 2026-07-18
-**Status**: ✅ Built & structurally verified (gunner flow needs a playtest)
+**Status**: ✅ Completed & playtested — user: "gun (mounted) now is perfect"
+
+## Post-build fixes (all playtested)
+
+- **Aim matched to the camera** — the server ray now shares the gunner camera's origin + direction
+  (`CAM_UP`/`CAM_BACK` matched client↔server), so the shot goes exactly through the crosshair.
+- **First-person gun view** — the gunner's character is hidden + the camera sits over the gun + the
+  cursor is hidden + the camera re-asserts Scriptable each frame (the default camera was stealing it,
+  putting the player's head in the way).
+- **Handheld disabled while manning the gun** (client + server) — it was also firing and its tracer
+  (from the body, not the camera) was the misleading "wrong" ray.
+- **Gun tracer** added along the exact fire line; **hit logging** to the console (`[Gun] HIT …`).
+- **Handheld aim fix** — `ViewportPointToRay` → `ScreenPointToRay` (GUI-inset mismatch made it shoot
+  ~36 px above the cursor). Now lines up with the pointer.
 
 ## What was implemented
 
