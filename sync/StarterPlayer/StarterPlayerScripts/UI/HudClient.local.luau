@@ -95,16 +95,16 @@ local function ratio(cur: number?, max: number?): number
 end
 
 RunService.RenderStepped:Connect(function()
-	-- cargo/ammo readout from the trailer
-	local trailer = Workspace:FindFirstChild("Trailer")
-	cargo.Visible = trailer ~= nil
-	if trailer then
+	-- cargo/ammo readout from the boat's deck
+	local boatForCargo = Workspace:FindFirstChild("Boat")
+	cargo.Visible = boatForCargo ~= nil
+	if boatForCargo then
 		cargo.Text = string.format(
 			"CARGO   Gas %d   Metal %d   Ammo %d (+%d rds)",
-			(trailer:GetAttribute("Gasoline") :: number?) or 0,
-			(trailer:GetAttribute("Metal") :: number?) or 0,
-			(trailer:GetAttribute("Ammo") :: number?) or 0,
-			(trailer:GetAttribute("Rounds") :: number?) or 0
+			(boatForCargo:GetAttribute("Gasoline") :: number?) or 0,
+			(boatForCargo:GetAttribute("Metal") :: number?) or 0,
+			(boatForCargo:GetAttribute("Ammo") :: number?) or 0,
+			(boatForCargo:GetAttribute("Rounds") :: number?) or 0
 		)
 	end
 

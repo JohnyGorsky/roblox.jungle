@@ -8,10 +8,13 @@
 
 Replaced the pier auto-refuel with the real **loot → store → use** loop.
 
-- **Towed trailer** (`CargoServer`, `Workspace.Trailer`) — a greybox raft that **follows behind the boat**
-  (kinematic tow + visible rope), holding cargo attributes: **Gasoline, Metal, Ammo** (crates) + **Rounds**
-  (loaded) + **CargoMax** (10). Starts with 3 ammo.
-- **On-boat stations** (`CargoServer`, welded to the hull):
+- **Back cargo deck** (`CargoServer`) — cargo is stored **ON the boat** (one rigid assembly — decided
+  with the user over a towed trailer, which was fiddly/jittery per roblox-physics). A **massless welded**
+  back deck extends the boat (adds no mass → **handling unchanged**, verified: hull mass 851, coasts
+  freely after a push). Cargo attributes on the boat: **Gasoline, Metal, Ammo** (crates) + **Rounds**
+  (loaded) + **CargoMax** (10). Starts with 3 ammo. _(An earlier towed-trailer version was built then
+  replaced — it dragged the boat and looked lame.)_
+- **On-boat stations** (`CargoServer`, welded to the hull, on the back deck):
   - **Fuel Station** — hold → spend **1 gasoline** → +40 fuel (capped).
   - **Repair Station** — hold → spend **1 metal** → +25 hull HP (capped).
 - **Ammo** (`WeaponServer`) — each shot draws a **round** from the trailer; when empty it reloads a

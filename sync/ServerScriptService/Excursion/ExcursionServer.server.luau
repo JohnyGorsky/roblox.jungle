@@ -25,7 +25,6 @@ if not Workspace:GetAttribute("RiverReady") then
 end
 local boat = Workspace:WaitForChild("Boat")
 local hull = boat:WaitForChild("Hull") :: BasePart
-local trailer = Workspace:WaitForChild("Trailer") -- looted cargo goes here (built by CargoServer)
 local Terrain = Workspace.Terrain
 local CLEAR_Y = RiverData.WATER_Y + 3 -- basin floor / walkable ground height
 
@@ -72,13 +71,13 @@ deposit.Triggered:Connect(function(player: Player)
 		return
 	end
 	local resource = (carried:GetAttribute("Resource") :: string?) or "Metal"
-	local total = ((trailer:GetAttribute("Gasoline") :: number?) or 0)
-		+ ((trailer:GetAttribute("Metal") :: number?) or 0)
-		+ ((trailer:GetAttribute("Ammo") :: number?) or 0)
-	if total >= ((trailer:GetAttribute("CargoMax") :: number?) or 10) then
-		return -- trailer full → keep carrying it
+	local total = ((boat:GetAttribute("Gasoline") :: number?) or 0)
+		+ ((boat:GetAttribute("Metal") :: number?) or 0)
+		+ ((boat:GetAttribute("Ammo") :: number?) or 0)
+	if total >= ((boat:GetAttribute("CargoMax") :: number?) or 10) then
+		return -- cargo deck full → keep carrying it
 	end
-	trailer:SetAttribute(resource, ((trailer:GetAttribute(resource) :: number?) or 0) + 1)
+	boat:SetAttribute(resource, ((boat:GetAttribute(resource) :: number?) or 0) + 1)
 	carried:Destroy()
 	carrying[player] = nil
 	player:SetAttribute("Busy", false)

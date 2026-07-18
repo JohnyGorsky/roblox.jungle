@@ -68,19 +68,19 @@ remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
 		return
 	end
 
-	-- ammo: draw a round from the trailer; reload the round-pool from ammo crates; out of ammo = no shot
-	local trailer = Workspace:FindFirstChild("Trailer")
-	if trailer then
-		local rounds = (trailer:GetAttribute("Rounds") :: number?) or 0
+	-- ammo: draw a round from the boat's cargo; reload the round-pool from ammo crates; out of ammo = no shot
+	local ammoStore = Workspace:FindFirstChild("Boat")
+	if ammoStore then
+		local rounds = (ammoStore:GetAttribute("Rounds") :: number?) or 0
 		if rounds <= 0 then
-			local crates = (trailer:GetAttribute("Ammo") :: number?) or 0
+			local crates = (ammoStore:GetAttribute("Ammo") :: number?) or 0
 			if crates <= 0 then
 				return -- out of ammo
 			end
-			trailer:SetAttribute("Ammo", crates - 1)
+			ammoStore:SetAttribute("Ammo", crates - 1)
 			rounds = ROUNDS_PER_AMMO
 		end
-		trailer:SetAttribute("Rounds", rounds - 1)
+		ammoStore:SetAttribute("Rounds", rounds - 1)
 	end
 
 	local char = player.Character
