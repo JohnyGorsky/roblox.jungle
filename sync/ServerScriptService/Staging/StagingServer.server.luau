@@ -169,6 +169,12 @@ local function startRun()
 	started = true
 	Workspace:SetAttribute("RunStarted", true)
 	hull.Anchored = false
+	-- re-assert SERVER ownership (the boat was anchored at build so BoatServer's claimServerOwnership was
+	-- skipped). Without this, a player standing on the freed boat becomes its owner and the current force
+	-- drifts it away fast, leaving them behind. Server-owned = the base-game behaviour (driver drives it).
+	pcall(function()
+		hull:SetNetworkOwner(nil)
+	end)
 	boat:SetAttribute("Tied", false)
 	rope:Destroy()
 	a0:Destroy()

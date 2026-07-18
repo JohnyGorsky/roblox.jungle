@@ -23,6 +23,12 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
   - **On-boat detection = downward raycast** hitting only boat parts (a bounding box wrongly counted
     players on the pier, ~2 studs from the docked hull, letting them untie from shore and sail the boat off
     without them). Verified: pier = 0, boat = 1.
+  - **Server ownership re-asserted on untie** (`hull:SetNetworkOwner(nil)`): the boat was anchored at build
+    so BoatServer's `claimServerOwnership` had been skipped — a player **standing** (not seated) on the freed
+    boat became its network owner, and the client integrated the current force so the boat **rocketed away
+    and left the player swimming**. Re-asserting server ownership on untie makes it behave like the base game
+    (server-authoritative, driver drives). Verified with a STANDING player: after untie the boat is
+    server-owned, stays put (dZ −0.2), floats (no NaN), and the player stays aboard (Y above water).
   - **Then untie = START:** once docked the same prompt becomes **"Untie rope — START"**. Untie requires
     **someone aboard** (`OnBoatCount ≥ 1`, so the boat can't sail off without the crew) → `RunStarted=true`,
     unanchor, `Tied=false`, remove the rope + prompt. **The hub is left standing** (crew has sailed off) —
