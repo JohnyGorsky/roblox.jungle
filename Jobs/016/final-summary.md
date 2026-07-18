@@ -16,8 +16,13 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
     `claimServerOwnership` early-returns on a grounded assembly so ownership isn't fought — same as
     DockServer's tie). The boat spawns **off the pier** (~26 studs) with a visible brown rope to the winch.
   - **Pull-to-reel:** a **"Pull rope"** ProximityPrompt on a placeholder **Winch** cube reels the boat in
-    toward the pier (`PULL_STEP` per pull, smooth lerp, rope shortens). Once within `DOCK_DIST` it **docks**
-    alongside the pier (boardable — verified: boat edge overlaps the gangway, floats at the waterline).
+    toward the pier (`PULL_STEP` per pull, smooth lerp, rope shortens). It **docks alongside a jetty**,
+    kept **`DOCK_MARGIN` (6) studs of clear water off the shore** so it never beaches (docked X is computed
+    from the boat's beam + margin); all collidable hub geometry stays on the land side so nothing overlaps
+    the boat. Verified: docked boat floats level at the waterline, launches free without sinking or NaN.
+  - **On-boat detection = downward raycast** hitting only boat parts (a bounding box wrongly counted
+    players on the pier, ~2 studs from the docked hull, letting them untie from shore and sail the boat off
+    without them). Verified: pier = 0, boat = 1.
   - **Then untie = START:** once docked the same prompt becomes **"Untie rope — START"**. Untie requires
     **someone aboard** (`OnBoatCount ≥ 1`, so the boat can't sail off without the crew) → `RunStarted=true`,
     unanchor, `Tied=false`, remove the rope + prompt. **The hub is left standing** (crew has sailed off) —

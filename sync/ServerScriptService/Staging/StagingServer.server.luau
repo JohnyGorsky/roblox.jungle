@@ -58,25 +58,25 @@ end
 -- ---- PLACEHOLDER greybox hub (replace with the hand-built crash-site hub) ----
 local centerX = RiverData.centerlineX(HUB_Z)
 local waterEdgeX = centerX + HUB_SIDE * (RiverData.widthAt(HUB_Z) * 0.5)
-local platformCenter = Vector3.new(waterEdgeX + HUB_SIDE * 15, WATER_Y + 2.5, HUB_Z)
+local PLATFORM_SX = 36
+local DOCK_MARGIN = 6 -- studs of clear water kept between the boat's bank-side edge and the shore (never beaches)
 
-block("HubPlatform", Vector3.new(36, 1, 46), Color3.fromRGB(120, 110, 92), CFrame.new(platformCenter), Enum.Material.Ground)
+-- Keep ALL collidable land geometry on the LAND side (past waterEdgeX) so nothing overlaps the boat.
+local platformCenter = Vector3.new(waterEdgeX + HUB_SIDE * (PLATFORM_SX / 2), WATER_Y + 2.5, HUB_Z)
+block("HubPlatform", Vector3.new(PLATFORM_SX, 1, 46), Color3.fromRGB(120, 110, 92), CFrame.new(platformCenter), Enum.Material.Ground)
 block(
 	"PlaneWreck",
 	Vector3.new(10, 7, 24),
 	Color3.fromRGB(150, 150, 160),
-	CFrame.new(platformCenter + Vector3.new(HUB_SIDE * 7, 4, -10)) * CFrame.Angles(0, math.rad(20), math.rad(8)),
+	CFrame.new(platformCenter + Vector3.new(HUB_SIDE * 4, 4, -12)) * CFrame.Angles(0, math.rad(20), math.rad(8)),
 	Enum.Material.Metal
 )
--- gangway from the platform edge toward the boat
-local edgePoint = Vector3.new(waterEdgeX, WATER_Y + 2.5, HUB_Z)
-block("Gangway", Vector3.new(6, 0.5, 14), Color3.fromRGB(110, 80, 55), CFrame.new(edgePoint - Vector3.new(HUB_SIDE * 3, 0, 0)), Enum.Material.WoodPlanks)
 
--- The boat spawns mid-channel; it starts moored a bit OFF the pier. Players PULL the rope to reel it in,
--- then UNTIE to launch. Translate only (keep heading) so BoatServer's captured desiredYaw stays valid and
--- the boat won't snap-rotate when released.
+-- The boat spawns mid-channel; it starts moored OFF the pier. Players PULL the rope to reel it in until it
+-- docks ALONGSIDE the jetty — kept fully in the water (DOCK_MARGIN of clear water to shore). Translate only
+-- (keep heading) so BoatServer's captured desiredYaw stays valid and the boat won't snap-rotate on release.
 local rotOnly = hull.CFrame - hull.CFrame.Position
-local DOCKED_X = waterEdgeX - HUB_SIDE * (hull.Size.X / 2 + 2) -- boat sits right alongside the pier
+local DOCKED_X = waterEdgeX - HUB_SIDE * (hull.Size.X / 2 + DOCK_MARGIN)
 local REEL_OFFSET = 26 -- how far off the pier it starts (studs)
 local dockedPos = Vector3.new(DOCKED_X, WATER_Y + 2, HUB_Z)
 local startPos = Vector3.new(DOCKED_X - HUB_SIDE * REEL_OFFSET, WATER_Y + 2, HUB_Z)
@@ -90,9 +90,17 @@ moveBoatTo(startPos)
 local spawnPos = platformCenter + Vector3.new(0, 3, 0)
 Workspace:SetAttribute("HubSpawn", spawnPos)
 
--- winch + rope hull→winch (rope style lifted from DockServer's tie). The winch is a PLACEHOLDER cube —
--- swap for a winch asset later; the "Pull rope" action lives on it.
-local post = block("Winch", Vector3.new(3, 3, 3), Color3.fromRGB(210, 120, 40), CFrame.new(edgePoint + Vector3.new(0, 1.5, 0)), Enum.Material.Metal)
+-- jetty: a walkway from the shore out over the water to the boat's side, ending ~1 stud short of the boat
+-- (no overlap → the boat launches free). Players walk it to board. CanCollide so you can stand on it.
+local boatEdgeX = DOCKED_X + HUB_SIDE * (hull.Size.X / 2) -- boat edge facing the shore
+local jettyTipX = boatEdgeX + HUB_SIDE * 1 -- 1-stud step gap from the boat
+local jettyLenX = math.max(2, math.abs(waterEdgeX - jettyTipX))
+local jettyCenterX = (waterEdgeX + jettyTipX) / 2
+block("Jetty", Vector3.new(jettyLenX, 0.5, 12), Color3.fromRGB(110, 80, 55), CFrame.new(jettyCenterX, WATER_Y + 2.7, HUB_Z), Enum.Material.WoodPlanks)
+
+-- winch at the jetty's boat-side tip (PLACEHOLDER cube; non-colliding so it never blocks the boat). Pull lives here.
+local post = block("Winch", Vector3.new(3, 3, 3), Color3.fromRGB(210, 120, 40), CFrame.new(jettyTipX, WATER_Y + 4.2, HUB_Z), Enum.Material.Metal)
+post.CanCollide = false
 local a0 = Instance.new("Attachment")
 a0.Parent = hull
 local a1 = Instance.new("Attachment")
@@ -179,20 +187,25 @@ prompt.Triggered:Connect(function()
 	end
 end)
 
+-- accurate "on boat" test: raycast straight down from the player and only count a hit on a BOAT part.
+-- (A bounding box overlaps the pier when the boat is docked ~2 studs off it, wrongly counting pier-standers.)
+local function isOnBoat(root: BasePart): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { boat }
+	params.IgnoreWater = true
+	return Workspace:Raycast(root.Position, Vector3.new(0, -8, 0), params) ~= nil
+end
+
 -- boat-occupancy readout while staging: "N/M on boat" (published as Boat attributes for the client HUD)
 task.spawn(function()
 	while not started do
-		local half = hull.Size * 0.5
 		local onBoat = 0
 		for _, plr in ipairs(Players:GetPlayers()) do
 			local char = plr.Character
 			local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if root then
-				local lp = hull.CFrame:PointToObjectSpace(root.Position)
-				-- oriented box around the hull, expanded to include the welded back cargo deck (+local Z)
-				if math.abs(lp.X) < half.X + 4 and lp.Z < half.Z + 20 and lp.Z > -(half.Z + 4) and math.abs(lp.Y) < 9 then
-					onBoat += 1
-				end
+			if root and isOnBoat(root) then
+				onBoat += 1
 			end
 		end
 		boat:SetAttribute("OnBoatCount", onBoat)
