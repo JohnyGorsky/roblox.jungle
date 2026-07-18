@@ -5,7 +5,6 @@
 -- is raycast onto the terrain and only placed on LOW GRASS bank (not up on rock/snow), so the whole
 -- river reads as jungle. Greybox — real foliage/instancing comes in the art pass.
 
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -13,9 +12,10 @@ local RiverData = require(ReplicatedStorage:WaitForChild("River"):WaitForChild("
 
 local AHEAD = 800
 local BEHIND = 220
-local SEG = 48 -- studs of river per foliage segment
-local PER_BANK = 2 -- trees per bank per segment
-local MAX_TREE_Y = 24 -- keep trees on the low grassy banks, not the rock/snow
+local SEG = 40 -- studs of river per foliage segment
+local PER_BANK = 8 -- trees per bank per segment (dense band)
+local MAX_TREE_Y = 27 -- keep trees on the grassy banks, not up on the rock/snow
+local BAND = 130 -- how far inland from the water edge trees can go (up to where mountains start)
 
 if not Workspace:GetAttribute("RiverReady") then
 	Workspace:GetAttributeChangedSignal("RiverReady"):Wait()
@@ -59,16 +59,24 @@ local function buildSeg(idx: number)
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { root }
 	params.IgnoreWater = true
+	local terrainFound = false
 	for _, side in ipairs({ -1, 1 }) do
 		for _ = 1, PER_BANK do
 			local z = idx * SEG + rng:NextNumber(0, SEG)
 			local halfW = RiverData.widthAt(z) * 0.5
-			local x = RiverData.centerlineX(z) + side * (halfW + rng:NextNumber(6, 60))
+			local x = RiverData.centerlineX(z) + side * (halfW + rng:NextNumber(4, BAND)) -- across the grassy bank to the mountains
 			local hit = Workspace:Raycast(Vector3.new(x, 90, z), Vector3.new(0, -200, 0), params)
-			if hit and hit.Instance == Workspace.Terrain and hit.Material == Enum.Material.Grass and hit.Position.Y < MAX_TREE_Y then
-				tree(hit.Position, model)
+			if hit and hit.Instance == Workspace.Terrain then
+				terrainFound = true
+				if hit.Material == Enum.Material.Grass and hit.Position.Y < MAX_TREE_Y then
+					tree(hit.Position, model)
+				end
 			end
 		end
+	end
+	if not terrainFound then
+		model:Destroy() -- terrain not generated here yet → leave unmarked, retry next tick
+		return
 	end
 	model.Parent = root
 	placed[idx] = model

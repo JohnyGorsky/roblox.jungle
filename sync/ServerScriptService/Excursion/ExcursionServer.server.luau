@@ -160,6 +160,16 @@ local function buildLandingSite(dock: RiverData.Dock, index: number)
 	local basinCenterX = waterEdge + dock.side * (BASIN_SIZE / 2) -- inner edge AT the water line (walkable shore), not into the channel
 	carve(basinCenterX, dock.z, BASIN_SIZE)
 
+	-- contain the valley: raise rock walls on the 3 inland sides (water side stays open for the dock)
+	-- so the crew can't walk off the carved basin's edge.
+	local half = BASIN_SIZE / 2
+	local function wallBlock(cx: number, cz: number, sx: number, sz: number)
+		Terrain:FillBlock(CFrame.new(cx, 17, cz), Vector3.new(sx, 50, sz), Enum.Material.Rock) -- solid Y[-8..42]
+	end
+	wallBlock(basinCenterX + dock.side * (half + 15), dock.z, 30, BASIN_SIZE + 60) -- far inland wall
+	wallBlock(basinCenterX + dock.side * 15, dock.z + half + 15, BASIN_SIZE + 30, 30) -- +Z wall
+	wallBlock(basinCenterX + dock.side * 15, dock.z - half - 15, BASIN_SIZE + 30, 30) -- -Z wall
+
 	local model = Instance.new("Model")
 	model.Name = "LandingSite"
 	local rng = Random.new(index * 131 + 7)
