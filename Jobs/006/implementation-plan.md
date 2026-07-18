@@ -2,7 +2,7 @@
 
 **Project**: `roblox.jungle`
 **Created**: 2026-07-18
-**Status**: In progress (greybox POC)
+**Status**: ✅ Completed (2026-07-18) — see final-summary.md
 
 ## Goal
 Prove the core survival tension: an alligator that **chases the boat and bites it** (boat HP + fail

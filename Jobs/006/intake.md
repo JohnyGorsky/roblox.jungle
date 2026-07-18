@@ -2,7 +2,7 @@
 
 **Project**: `roblox.jungle`
 **Created**: 2026-07-18 15:19:49
-**Status**: Requirements Gathering (intake)
+**Status**: ✅ Completed (2026-07-18)
 
 ## Requirements / goal
 
@@ -18,7 +18,7 @@ multiplier later. (Day/night safety flip: DAY = travel the water, NIGHT = shelte
 
 ## Checklist
 
-- [ ] Requirements reviewed (this intake)
-- [ ] Implementation plan created & agreed
-- [ ] Implementation completed
-- [ ] Final summary + changelog written
+- [x] Requirements reviewed (this intake)
+- [x] Implementation plan created & agreed
+- [x] Implementation completed
+- [x] Final summary + changelog written
