@@ -184,26 +184,39 @@ after); whether the hull physically scales in size; per-module art (P9, Meshy)._
 - **Placeholder first:** early phases greybox the terrain + river to test feel; final flora, water
   detailing, and set-pieces come in the art pass (P9).
 
-## Landing sites & land excursions (docks → camps & villages)
+## Docks, tying up & jungle excursions (the second core pillar)
 
-_(Added 2026-07-18.)_ Not every stop is just a fuel pump. At **designated landing sites** the river
-**widens / opens onto a coast** where the crew can **disembark onto bigger, walkable terrain** and make
-an **excursion on foot**: trek inland to a **camp or village**, **raid it** for fuel / ammo / loot /
-currency (guarded — a real fight), and **haul it back to the boat**. The boat waits behind, exposed
-(core tension = stopping is dangerous), so someone may stay to defend it.
+_(Added 2026-07-18; refined with the on-foot-raid vision.)_ The river run and the **on-foot jungle raid**
+are the game's **two halves**. You can't just hop off anywhere — leaving the boat is a deliberate,
+gated act that only happens at docks:
 
-- **Wider terrain at these sites.** Unlike the travel stretches (a channel with banks), landing sites
-  generate **large open walkable areas** — coastline, clearings, a village footprint — sized for on-foot
-  play, not just a dock plank.
-- **Risk vs reward.** Camps/villages hold the best loot but are defended; raiding is the high-stakes
-  version of scavenging. Extends the existing dock/refuel loop into a real set-piece.
-- **Variety via seeds / biomes.** Different site types along the run — coast, jungle village, ruined
-  temple, hunter camp — each its own generated flavor. The terrain generator grows from **one river
-  mode into multiple seeded modes/biomes** stitched along the route (main river + POI zones).
+**The excursion loop:**
+1. **Reach a dock** (the *only* valid disembark points — seeded along the river).
+2. **Tie up the boat** — a hands-on action (rope it to the dock). Only once it's **tied** can the crew
+   get out. While tied, the boat sits **anchored** at the dock (safer, but still attackable — someone may
+   stay to guard it + the trailer).
+3. **Trek into the jungle on foot** — the shores are **dense jungle** (trees, foliage, undergrowth), and
+   inland from each dock is a **procedurally generated camp** (later: villages, ruins, hunter camps).
+4. **Raid it** — loot **metal / ammo / gasoline / currency**, guarded by land threats (a real fight).
+5. **Haul it back**, **untie** the boat, and **drive on**.
 
-Ties into: **docks / refuel** (P4), **threats & combat on land** (P3), the **modular boat** (raided loot
-buys upgrades), and **zones** (P5). Terrain support is a **future extension of the Job #005 generator**
-(the main river ships first).
+**What this needs (terrain & world):**
+- **Dense jungle along ALL shores** — the banks aren't bare grass; they're forested (trees/bushes),
+  greybox now → low-poly/Meshy foliage at P9. This is a big addition to the Job #005 generator.
+- **A walkable jungle pocket at each dock** — the terrain **opens inland** into a larger on-foot area
+  (clearing + camp), unlike the tight travel banks. (This is the "wider terrain at landing sites" idea,
+  now concretely gated behind docks.)
+- **Generated camps** — seeded structures with loot + guards, inland from the dock.
+
+**Design impact:**
+- **Docks become the game's hubs**, not fuel pumps — refuel/repair *and* the raid gateway.
+- Adds a whole **on-foot pillar** (walking, jungle exploration, land combat) alongside the boat pillar.
+- **Core tension:** the boat/trailer sit exposed at the dock while you're inland — and at **night** the
+  water's deadly, so you may *want* to be ashore then (flips the day/night calculus).
+
+Ties into: **docks / refuel** (P4), **land threats** (P3/#009), the **trailer + resources** (haul loot
+back), **modular boat**, **zones** (P5), and a **generator that grows from one river mode into river +
+jungle + camp modes** (extends #005; see `Planned/`).
 
 ## Threats, stake & fail/win
 
@@ -229,8 +242,39 @@ buys upgrades), and **zones** (P5). Terrain support is a **future extension of t
   boat** to keep it running (like feeding coal to the Dead Rails train). The tank **drains as you ride**,
   so the crew must keep topping it up between/at stops — run dry and you're **stranded = swarmed**.
   This "keep feeding the boat" chore is a constant, shared crew job.
-- **Ammo** — gates the gunner; scavenged/bought and carried back too.
-- Likely also **repair kits / health**, and collectibles for score. _(OPEN)_
+- **Metal parts / scrap** _(added 2026-07-18)_ — the boat's **repair** material. Boat HP is chipped
+  away by animals/hazards; the crew **loots metal** (at docks / land excursions) and spends it to
+  **repair the hull** (restore boat HP). Another reason to stop and scavenge; pairs a repair role/station
+  with the driver + gunner.
+- **Ammo** _(added 2026-07-18 — gates combat)_ — gunners' weapons **consume ammo**; you **loot ammo** to
+  keep firing. Run out and you can't shoot back (steer/flee instead) — makes ammo a managed resource, not
+  infinite. Scavenged/bought and carried back like fuel.
+- The three loot resources — **gasoline (move), metal (repair), ammo (fight)** — are the core scavenge
+  economy; docks/camps stock them, and hauling them back is shared crew work.
+- Likely also **health/bandages** (revive — see "Threats"), and collectibles for score. _(OPEN)_
+
+## Cargo — the towed trailer & on-boat stations
+
+_(Added 2026-07-18.)_ Loot isn't consumed instantly — it's **stored and hauled, then used at a spot on
+the boat** (like feeding the Dead Rails firebox):
+
+- **A towed trailer** — a raft/barge **roped to the boat** (physics `RopeConstraint`) is the crew's
+  **cargo hold**. Scavenged **gasoline, metal, ammo** (and loot) go INTO the trailer; it follows the
+  boat, can swing/drag as part of the driving feel, and is itself a target threats can attack.
+- **Carry capacity is limited** — the trailer holds only so much, forcing "what do we grab?" choices.
+  Capacity is **expandable via game pass** (fair, non-P2W **convenience** — more slots, not more power)
+  and/or meta upgrades. This is a primary monetization lever.
+- **On-boat STATIONS** — you **take a resource from the trailer and use it at a specific station**:
+  - **Fuel station** — pour gasoline in to refuel the engine.
+  - **Repair station** — spend metal parts to patch the hull (restore boat HP).
+  - Gunners draw **ammo** from the shared stock.
+  So refuel/repair are **deliberate physical chores at a spot on the boat, under threat** — not instant.
+  _(The current greybox refuels straight from the dock — a simplification of this loot → trailer →
+  station flow, to be built out.)_
+
+Ties into: **modular boat** (trailer + stations are add-ons), **resources** (gasoline/metal/ammo),
+**inventory/capacity** (game-pass slots), **roles** (a hauler/engineer job), and the **dock/excursion**
+scavenge loop.
 
 ## Progression & replay
 

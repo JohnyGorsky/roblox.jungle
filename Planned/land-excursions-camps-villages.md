@@ -8,20 +8,29 @@ onto a **coast / open bank**, the crew **disembarks onto bigger walkable terrain
 village**, **raids it** (guarded loot: fuel/ammo/currency/upgrades), and hauls it back. The boat waits,
 exposed.
 
+## The loop (refined 2026-07-18)
+Docks are the **only** disembark points. At a dock: **tie the boat** (rope, hands-on) → only then can the
+crew **get out** → **trek into dense jungle on foot** → reach a **generated camp** → **raid** (guarded
+loot) → **haul back** → **untie** → drive on. Boat + trailer sit **anchored but exposed** while you're
+inland (guard-vs-raid trade-off). At night the water's deadly, so going ashore can be the *safer* play.
+
 ## Scope (future)
-- **Widened, walkable terrain** at landing sites — coastline/clearing/village footprint, sized for
-  on-foot play (much wider than the travel channel).
-- **Generator = multiple seeded modes/biomes** stitched along the route: main river + POI zones (coast,
-  jungle village, ruined temple, hunter camp…). Extends the Job #005 `RiverData`/`RiverGenerator` from
-  one river mode to many. Keep those modules **mode-aware** so this drops in cleanly later.
-- **Raid gameplay** — defended camps/villages; loot tables; carry-back; boat-defense trade-off (who
-  stays vs who raids).
-- Placement of landing sites along the run (spacing, escalation, guaranteed vs random).
+- **Tie/untie mechanic** — rope the boat to the dock (a `RopeConstraint` / anchored state); disembark is
+  gated on "tied". Untie to leave.
+- **Dense jungle along ALL shores** — forested banks (trees/foliage), not bare grass — a big addition to
+  the #005 generator (greybox blocks → Meshy foliage at P9). Watch mobile perf (instancing/streaming).
+- **Walkable jungle pocket at each dock** — terrain **opens inland** into a larger on-foot area + camp,
+  vs the tight travel banks.
+- **Generator = multiple seeded modes** — main river + **jungle/camp POI zones** stitched in at docks.
+  Extends #005 `RiverData`/`RiverGenerator`; keep them **mode-aware**.
+- **Camps** — seeded structures inland: defended, loot tables (metal/ammo/fuel/currency), carry-back.
+- **On-foot combat** — land threats (panthers +…) defend camps; a boat-defense trade-off (who guards).
 
 ## Open questions
-- Are landing sites **fixed** points in the run or seeded/random? (Leaderboard fairness vs variety.)
-- How big is a village footprint on mobile perf? Streaming a wide POI zone vs the narrow channel.
-- Overlap with the plain "refuel dock" — are all docks raidable, or are camps/villages special?
+- Are docks/camps **fixed** (seeded) or random? (Leaderboard fairness vs variety — leaning seeded.)
+- Camp footprint vs **mobile perf** — streaming a wide jungle POI vs the narrow channel.
+- Is **every** dock a raid site, or are big camps/villages special (some docks = just refuel)?
+- Boat security while tied: fully safe, or can threats damage the tied boat/trailer (someone must guard)?
 
 ## Why it matters
 This is the river game's equivalent of Dead Rails' **towns** — the reason to stop, the loot spikes, the
