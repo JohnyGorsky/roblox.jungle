@@ -14,11 +14,17 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
 - **`StagingServer`** (`sync/ServerScriptService/Staging/`) —
   - **Moors the boat** at spawn: `hull.Anchored = true` + `Tied = true` (safe from the constant current;
     `claimServerOwnership` early-returns on a grounded assembly so ownership isn't fought — same as
-    DockServer's tie), with a visible brown **mooring rope** hull→post (lifted from DockServer).
-  - **Greybox hub** (a `StagingArea` folder — clearly marked PLACEHOLDER): a bank platform, a "plane
-    wreck" block, a gangway, a mooring post. Publishes `HubSpawn` (Vector3) for the spawn logic.
-  - **Untie = START:** a "Untie rope — START" ProximityPrompt (anyone can trigger). On untie →
-    `RunStarted=true`, unanchor the boat, `Tied=false`, destroy the rope + tear down the placeholder hub.
+    DockServer's tie). The boat spawns **off the pier** (~26 studs) with a visible brown rope to the winch.
+  - **Pull-to-reel:** a **"Pull rope"** ProximityPrompt on a placeholder **Winch** cube reels the boat in
+    toward the pier (`PULL_STEP` per pull, smooth lerp, rope shortens). Once within `DOCK_DIST` it **docks**
+    alongside the pier (boardable — verified: boat edge overlaps the gangway, floats at the waterline).
+  - **Then untie = START:** once docked the same prompt becomes **"Untie rope — START"**. Untie requires
+    **someone aboard** (`OnBoatCount ≥ 1`, so the boat can't sail off without the crew) → `RunStarted=true`,
+    unanchor, `Tied=false`, remove the rope + prompt. **The hub is left standing** (crew has sailed off) —
+    it is NOT torn down (fixed the "everything disappears" issue).
+  - **Greybox hub** (a `StagingArea` folder — clearly marked PLACEHOLDER, for the hand-built hub): a bank
+    platform, a "plane wreck" block, a gangway, and the **Winch cube** (placeholder for a future winch
+    asset). Publishes `HubSpawn` (Vector3) for the spawn logic.
   - **Occupancy counter:** while staging, publishes `Boat.OnBoatCount` / `Boat.CrewCount` (players whose
     HRP is inside the hull's oriented box, expanded for the back deck) for the HUD.
 - **Spawn branch** (`PlayerCombat.server.luau`) — before start, spawn at the **hub** (`HubSpawn`); after
@@ -62,6 +68,10 @@ A **staging phase** in front of the river run (same place, phased), gated by a n
 - **Not committed.**
 - **Human hand-builds** the real crash-site hub + startup river section (deletes the greybox `StagingArea`).
 - **Follow-up job:** switch procedural generation to begin at `HANDOFF_Z` (hand-built → procedural handoff).
+- **Generalize pull-to-reel to EVERY pier (user request):** the reel-in-with-the-rope mechanic should also
+  work at the river docks (`DockServer`). Best done by extracting a shared "moor + winch reel" module used
+  by both StagingServer and DockServer (avoid duplicating the reel/rope code). → **follow-up job.**
+- **Winch asset:** the pull action currently lives on a placeholder cube — swap for a winch model later.
 - **Hangs off this hub next:** role assignment (P2), pre-run Robux shop (P8), lobby place + party teleport
   (P6) — the two-place front end.
 - The greybox hub camera clips the bank terrain (cosmetic); irrelevant once hand-built.

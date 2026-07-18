@@ -72,18 +72,27 @@ block(
 local edgePoint = Vector3.new(waterEdgeX, WATER_Y + 2.5, HUB_Z)
 block("Gangway", Vector3.new(6, 0.5, 14), Color3.fromRGB(110, 80, 55), CFrame.new(edgePoint - Vector3.new(HUB_SIDE * 3, 0, 0)), Enum.Material.WoodPlanks)
 
--- pull the moored boat up ALONGSIDE the pier (it spawns mid-channel). Translate only — keep the boat's
--- heading so BoatServer's captured desiredYaw stays valid and it won't snap-rotate when released.
-local mooredPos = Vector3.new(waterEdgeX - HUB_SIDE * (hull.Size.X / 2 + 2), WATER_Y + 2, HUB_Z)
+-- The boat spawns mid-channel; it starts moored a bit OFF the pier. Players PULL the rope to reel it in,
+-- then UNTIE to launch. Translate only (keep heading) so BoatServer's captured desiredYaw stays valid and
+-- the boat won't snap-rotate when released.
 local rotOnly = hull.CFrame - hull.CFrame.Position
-boat:PivotTo(CFrame.new(mooredPos) * rotOnly)
+local DOCKED_X = waterEdgeX - HUB_SIDE * (hull.Size.X / 2 + 2) -- boat sits right alongside the pier
+local REEL_OFFSET = 26 -- how far off the pier it starts (studs)
+local dockedPos = Vector3.new(DOCKED_X, WATER_Y + 2, HUB_Z)
+local startPos = Vector3.new(DOCKED_X - HUB_SIDE * REEL_OFFSET, WATER_Y + 2, HUB_Z)
+
+local function moveBoatTo(p: Vector3)
+	boat:PivotTo(CFrame.new(p) * rotOnly)
+end
+moveBoatTo(startPos)
 
 -- hub spawn point (read by PlayerCombat before the run starts)
 local spawnPos = platformCenter + Vector3.new(0, 3, 0)
 Workspace:SetAttribute("HubSpawn", spawnPos)
 
--- mooring post at the water edge + rope hull→post (lifted from DockServer's tie)
-local post = block("MooringPost", Vector3.new(1.6, 5, 1.6), Color3.fromRGB(90, 60, 40), CFrame.new(edgePoint + Vector3.new(0, 2, 0)), Enum.Material.Wood)
+-- winch + rope hull→winch (rope style lifted from DockServer's tie). The winch is a PLACEHOLDER cube —
+-- swap for a winch asset later; the "Pull rope" action lives on it.
+local post = block("Winch", Vector3.new(3, 3, 3), Color3.fromRGB(210, 120, 40), CFrame.new(edgePoint + Vector3.new(0, 1.5, 0)), Enum.Material.Metal)
 local a0 = Instance.new("Attachment")
 a0.Parent = hull
 local a1 = Instance.new("Attachment")
@@ -92,26 +101,62 @@ a1.WorldPosition = post.Position + Vector3.new(0, 1, 0)
 local rope = Instance.new("RopeConstraint")
 rope.Attachment0 = a0
 rope.Attachment1 = a1
-rope.Length = (a0.WorldPosition - a1.WorldPosition).Magnitude + 2
+rope.Length = (a0.WorldPosition - a1.WorldPosition).Magnitude
 rope.Thickness = 0.15
 rope.Visible = true
 rope.Color = BrickColor.new("Brown")
 rope.Parent = hull
 
--- untie = START (anyone can trigger it)
+-- prompt: PULL (reel the boat to the pier) → then UNTIE (launch)
 local prompt = Instance.new("ProximityPrompt")
-prompt.Name = "UntiePrompt"
-prompt.ActionText = "Untie rope — START"
-prompt.ObjectText = "Mooring"
-prompt.HoldDuration = 0.8
+prompt.Name = "MooringPrompt"
+prompt.ActionText = "Pull rope"
+prompt.ObjectText = "Winch"
+prompt.HoldDuration = 0.4
 prompt.RequiresLineOfSight = false
-prompt.MaxActivationDistance = 22
+prompt.MaxActivationDistance = 24
 prompt.Parent = post
 
+local PULL_STEP = 8 -- studs reeled per pull
+local DOCK_DIST = 3 -- within this of the dock = docked
 local started = false
-local function startRun(_player: Player?)
-	if started then
+local docked = false
+local reeling = false
+
+local function refreshRope()
+	rope.Length = math.max(1, (a0.WorldPosition - a1.WorldPosition).Magnitude)
+end
+
+local function reel()
+	if reeling or docked then
 		return
+	end
+	reeling = true
+	local from = hull.Position
+	local flat = Vector3.new(dockedPos.X - from.X, 0, dockedPos.Z - from.Z)
+	local stepDist = math.min(PULL_STEP, flat.Magnitude)
+	local to = from + (if flat.Magnitude > 0.01 then flat.Unit else Vector3.zero) * stepDist
+	for i = 1, 12 do -- smooth haul over ~0.25s
+		moveBoatTo(from:Lerp(to, i / 12))
+		refreshRope()
+		task.wait(0.02)
+	end
+	if (Vector3.new(hull.Position.X - dockedPos.X, 0, hull.Position.Z - dockedPos.Z)).Magnitude <= DOCK_DIST then
+		docked = true
+		moveBoatTo(dockedPos)
+		refreshRope()
+		prompt.ActionText = "Untie rope — START"
+		print("[Staging] boat docked — board it, then untie to start")
+	end
+	reeling = false
+end
+
+local function startRun()
+	if started or not docked then
+		return
+	end
+	if ((boat:GetAttribute("OnBoatCount") :: number?) or 0) < 1 then
+		return -- someone must be aboard to launch (don't sail off without the crew)
 	end
 	started = true
 	Workspace:SetAttribute("RunStarted", true)
@@ -120,11 +165,19 @@ local function startRun(_player: Player?)
 	rope:Destroy()
 	a0:Destroy()
 	a1:Destroy()
+	prompt:Destroy()
 	Workspace:SetAttribute("HubSpawn", nil)
-	area:Destroy() -- tear down the placeholder hub; from now on respawns land on the boat
+	-- leave the greybox hub standing behind (the crew has sailed off on the boat)
 	print("[Staging] rope untied — RUN STARTED")
 end
-prompt.Triggered:Connect(startRun)
+
+prompt.Triggered:Connect(function()
+	if not docked then
+		reel()
+	else
+		startRun()
+	end
+end)
 
 -- boat-occupancy readout while staging: "N/M on boat" (published as Boat attributes for the client HUD)
 task.spawn(function()
