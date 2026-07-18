@@ -62,6 +62,31 @@ end
 local fuelFill, fuelLabel = makeBar()
 local hpFill, hpLabel = makeBar()
 
+-- cargo/ammo readout (POC — top-left; real design later)
+local cargo = Instance.new("TextLabel")
+cargo.Name = "Cargo"
+cargo.Position = UDim2.new(0, 12, 0, 12)
+cargo.Size = UDim2.fromScale(0.34, 0.05)
+cargo.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+cargo.BackgroundTransparency = 0.35
+cargo.BorderSizePixel = 0
+cargo.TextColor3 = Color3.new(1, 1, 1)
+cargo.Font = Enum.Font.GothamBold
+cargo.TextScaled = true
+cargo.TextXAlignment = Enum.TextXAlignment.Left
+cargo.Text = ""
+local cCorner = Instance.new("UICorner")
+cCorner.CornerRadius = UDim.new(0, 6)
+cCorner.Parent = cargo
+local cPad = Instance.new("UIPadding")
+cPad.PaddingLeft = UDim.new(0, 8)
+cPad.PaddingRight = UDim.new(0, 8)
+cPad.Parent = cargo
+local cSize = Instance.new("UITextSizeConstraint")
+cSize.MaxTextSize = 16
+cSize.Parent = cargo
+cargo.Parent = gui
+
 local function ratio(cur: number?, max: number?): number
 	if not cur or not max or max <= 0 then
 		return 0
@@ -70,6 +95,19 @@ local function ratio(cur: number?, max: number?): number
 end
 
 RunService.RenderStepped:Connect(function()
+	-- cargo/ammo readout from the trailer
+	local trailer = Workspace:FindFirstChild("Trailer")
+	cargo.Visible = trailer ~= nil
+	if trailer then
+		cargo.Text = string.format(
+			"CARGO   Gas %d   Metal %d   Ammo %d (+%d rds)",
+			(trailer:GetAttribute("Gasoline") :: number?) or 0,
+			(trailer:GetAttribute("Metal") :: number?) or 0,
+			(trailer:GetAttribute("Ammo") :: number?) or 0,
+			(trailer:GetAttribute("Rounds") :: number?) or 0
+		)
+	end
+
 	local boat = Workspace:FindFirstChild("Boat")
 	container.Visible = boat ~= nil
 	if not boat then

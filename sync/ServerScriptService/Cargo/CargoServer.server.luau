@@ -26,6 +26,9 @@ end
 local boat = Workspace:WaitForChild("Boat")
 local hull = boat:WaitForChild("Hull") :: BasePart
 local WATER_Y = RiverData.WATER_Y
+-- distance from hull CENTRE to trailer CENTRE = half the hull + the gap + half the trailer
+-- (boat faces -Z, so the stern/behind is +Z local)
+local TOW_OFFSET = hull.Size.Z / 2 + GAP + TRAILER_SIZE.Z / 2
 
 -- ── the trailer (cargo hold) ────────────────────────────────────────────────
 local trailer = Instance.new("Part")
@@ -35,7 +38,7 @@ trailer.Color = Color3.fromRGB(110, 78, 50)
 trailer.Material = Enum.Material.WoodPlanks
 trailer.Anchored = true
 trailer.CanCollide = false
-trailer.CFrame = hull.CFrame * CFrame.new(0, 0, GAP + TRAILER_SIZE.Z / 2)
+trailer.CFrame = hull.CFrame * CFrame.new(0, 0, TOW_OFFSET)
 trailer:SetAttribute("Gasoline", 0)
 trailer:SetAttribute("Metal", 0)
 trailer:SetAttribute("Ammo", 3) -- start with a little ammo (crates); WeaponServer reloads rounds from these
@@ -64,7 +67,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		return
 	end
 	local yaw = select(2, hull.CFrame:ToOrientation())
-	local target = hull.CFrame * CFrame.new(0, 0, GAP + TRAILER_SIZE.Z / 2)
+	local target = hull.CFrame * CFrame.new(0, 0, TOW_OFFSET)
 	local goal = Vector3.new(target.Position.X, WATER_Y, target.Position.Z)
 	local newPos = trailer.Position:Lerp(goal, 1 - math.exp(-FOLLOW_K * dt))
 	trailer.CFrame = CFrame.new(newPos) * CFrame.Angles(0, yaw, 0)
