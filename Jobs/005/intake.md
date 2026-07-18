@@ -1,3 +1,11 @@
+# Job #005: River Terrain Generator
+
+**Project**: `roblox.jungle`
+**Created**: 2026-07-18 11:08:54
+**Status**: Requirements Gathering (intake)
+
+## Requirements / goal
+
 # Seeded river + terrain generator (reusable module)
 
 **Source:** Spike #004 "Next" + Job #003 (P1) follow-up. **Depends:** #004 (voxel direction locked).
@@ -24,3 +32,11 @@ Turns the greybox river into real, regenerable content; removes the boat↔terra
 foundation for endless mode (P10) and fair seeded runs.
 
 → Promote to a job (likely alongside P5 zones).
+
+
+## Checklist
+
+- [ ] Requirements reviewed (this intake)
+- [ ] Implementation plan created & agreed
+- [ ] Implementation completed
+- [ ] Final summary + changelog written
