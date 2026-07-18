@@ -11,7 +11,7 @@ local Workspace = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
 
 local WEAPON_DAMAGE = 20 -- croc hp 40 → 2 clean hits
-local MAX_RANGE = 350
+local WEAPON_RANGE = 220 -- can only hit enemies within this distance of the shooter
 local FIRE_INTERVAL = 0.22 -- min seconds between shots per player (anti-spam)
 
 local remote = Instance.new("RemoteEvent")
@@ -31,6 +31,26 @@ local function enemyFrom(inst: Instance?): Model?
 	return nil
 end
 
+-- the player currently driving the boat (occupant of the DriverSeat)
+local function isDriver(player: Player): boolean
+	local boat = Workspace:FindFirstChild("Boat")
+	local seat = boat and boat:FindFirstChild("DriverSeat")
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	return seat ~= nil and seat:IsA("VehicleSeat") and hum ~= nil and seat.Occupant == hum
+end
+
+-- who's allowed to shoot: not the driver, and not "Busy" (fishing/catching sets this attribute)
+local function canShoot(player: Player): boolean
+	if isDriver(player) then
+		return false
+	end
+	if player:GetAttribute("Busy") == true then
+		return false
+	end
+	return true
+end
+
 remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
 	if typeof(aimPoint) ~= "Vector3" then
 		return
@@ -41,6 +61,11 @@ remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
 		return
 	end
 	lastShot[player] = now
+
+	-- only certain players may shoot (not the driver, not while fishing/busy)
+	if not canShoot(player) then
+		return
+	end
 
 	local char = player.Character
 	if not char then
@@ -53,7 +78,7 @@ remote.OnServerEvent:Connect(function(player: Player, aimPoint: any)
 
 	local origin = root.Position
 	local delta = aimPoint - origin
-	local dist = math.min(delta.Magnitude, MAX_RANGE)
+	local dist = math.min(delta.Magnitude, WEAPON_RANGE) -- ray stops at range → enemies beyond can't be hit
 	if dist < 0.1 then
 		return
 	end

@@ -60,7 +60,27 @@ local function tracer(toPos: Vector3)
 	end)
 end
 
+-- you can't shoot while driving (in the DriverSeat) or while busy (fishing/catching)
+local function localCanShoot(): boolean
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.SeatPart and hum.SeatPart.Name == "DriverSeat" then
+		return false
+	end
+	if player:GetAttribute("Busy") == true then
+		return false
+	end
+	return true
+end
+
+local function updateCrosshair()
+	dot.Visible = localCanShoot()
+end
+
 local function fire(screenPos: Vector2)
+	if not localCanShoot() then
+		return -- server enforces this too; skip the round trip
+	end
 	local aim = aimPointFrom(screenPos)
 	remote:FireServer(aim)
 	tracer(aim)
@@ -75,3 +95,15 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 		fire(Vector2.new(input.Position.X, input.Position.Y))
 	end
 end)
+
+-- keep the crosshair in sync with whether you can currently shoot
+player:GetAttributeChangedSignal("Busy"):Connect(updateCrosshair)
+local function onCharacter(char: Model)
+	local hum = char:WaitForChild("Humanoid") :: Humanoid
+	hum:GetPropertyChangedSignal("SeatPart"):Connect(updateCrosshair)
+	updateCrosshair()
+end
+if player.Character then
+	onCharacter(player.Character)
+end
+player.CharacterAdded:Connect(onCharacter)
