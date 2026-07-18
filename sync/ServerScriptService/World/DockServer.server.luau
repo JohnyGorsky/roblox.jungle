@@ -48,7 +48,7 @@ local function buildDock(dock: RiverData.Dock, index: number)
 	deck.Size = Vector3.new(14, 1, 24)
 	deck.Color = Color3.fromRGB(120, 85, 55)
 	deck.Material = Enum.Material.WoodPlanks
-	deck.CFrame = CFrame.lookAt(pos + Vector3.new(0, 1.5, 0), pos + Vector3.new(0, 1.5, 0) + tangent)
+	deck.CFrame = CFrame.lookAt(pos + Vector3.new(0, 3.5, 0), pos + Vector3.new(0, 3.5, 0) + tangent) -- sits above the basin floor (Y15) so a landing-site basin can't bury it
 	deck.Parent = model
 	model.PrimaryPart = deck
 

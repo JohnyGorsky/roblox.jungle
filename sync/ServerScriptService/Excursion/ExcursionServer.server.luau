@@ -157,7 +157,7 @@ local function buildLandingSite(dock: RiverData.Dock, index: number)
 	built[index] = true
 	local halfW = RiverData.widthAt(dock.z) * 0.5
 	local waterEdge = RiverData.centerlineX(dock.z) + dock.side * halfW
-	local basinCenterX = waterEdge + dock.side * (BASIN_SIZE / 2 - 20)
+	local basinCenterX = waterEdge + dock.side * (BASIN_SIZE / 2) -- inner edge AT the water line (walkable shore), not into the channel
 	carve(basinCenterX, dock.z, BASIN_SIZE)
 
 	local model = Instance.new("Model")
