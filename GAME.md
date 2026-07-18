@@ -116,10 +116,25 @@ and turns "reach the next dock before nightfall" into constant fuel/time pressur
 ## Player roles (swappable stations)
 
 Players move freely between **stations** on the boat during the run (flexible for 1–4 players):
-- **Driver** — steers and controls speed; avoids hazards; docks the boat.
-- **Gunner** — fires at attacking animals (ammo-limited).
+- **Driver** — steers and controls speed; avoids hazards; docks the boat. **Can't shoot while driving.**
+- **Gunner** — mans a **mounted gun** (see Weapons); ammo-limited.
 - **Catcher / scavenger** — grabs floating/nearby items; manages supplies.
 - **4th station** _(OPEN — e.g. repair/mechanic to fix boat damage, or a second gunner)_.
+
+## Weapons & combat _(added 2026-07-18)_
+
+- **Melee (sword) — the default.** A player with no gun carries a **sword**: hit enemies at **very short
+  range** only. Always available (your fallback); weak vs. a swarm — you want a gun.
+- **Guns are earned, not given.** Players **obtain firearms (pistols, etc.) at camps** during raids.
+  Guns fire at range and **consume ammo** (looted). Handheld free-aim (tap/click a target).
+- **Mounted gun (gunner station) — the boat's heavy defence.** A **turret the gunner SITS at**:
+  - **Limited rotation** — you rotate within an arc (sit, traverse, fire), not a full 360°.
+  - **Own aiming camera** — sitting at the gun switches to a gunner view for better aim.
+  - **Much stronger** than a handheld gun (the boat's real firepower).
+  - **Ammo-fed** — draws from the boat's ammo cargo; loot ammo to keep it firing.
+- **Enemy health bars** — a floating HP bar over each enemy so you can read how close it is to dying.
+- Damage is **server-authoritative** (range, ammo, who-can-shoot all validated). Roles gate weapons:
+  the driver can't shoot; the gunner mans the turret; deck players use gun/sword.
 
 **Player count / scaling _(OPEN)_.** Baseline 1–4, but we may support **more players**. Options if we do:
 - **Limited stations + unlimited deck defenders** — only a few control-stations (driver, special guns),
